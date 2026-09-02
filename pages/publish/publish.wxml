@@ -1,0 +1,55 @@
+<view class="container">
+  <view class="form">
+    <view class="points-bar">
+      <text>当前积分：</text>
+      <text class="points-val">{{points}}</text>
+    </view>
+
+    <view class="field">
+      <view class="label">任务标题</view>
+      <input
+        class="input"
+        placeholder="例如：帮忙遛狗半小时"
+        value="{{title}}"
+        bindinput="onTitleInput"
+        maxlength="30"
+      />
+    </view>
+
+    <view class="field">
+      <view class="label">任务说明</view>
+      <textarea
+        class="textarea"
+        placeholder="详细描述一下任务内容、时间、地点等信息"
+        value="{{desc}}"
+        bindinput="onDescInput"
+        maxlength="200"
+      />
+    </view>
+
+    <view class="field">
+      <view class="label">付出积分</view>
+      <view class="reward-options">
+        <view
+          wx:for="{{rewardOptions}}"
+          wx:key="*this"
+          class="reward-opt {{reward == item ? 'active' : ''}}"
+          data-val="{{item}}"
+          bindtap="selectReward"
+        >{{item}}</view>
+      </view>
+      <input
+        class="input"
+        type="number"
+        placeholder="或自定义积分数量"
+        value="{{reward}}"
+        bindinput="onRewardInput"
+      />
+    </view>
+
+    <button class="submit-btn" bindtap="submit">发布任务</button>
+  </view>
+
+  <!-- 加载动画 -->
+  <loading show="{{loading}}" text="{{loadingText}}" />
+</view>

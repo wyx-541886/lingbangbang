@@ -1,0 +1,18 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/publish/publish",
+    "pages/accept/accept",
+    "pages/me/me",
+    "pages/settings/settings"
+  ],
+  "window": {
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#FDF4E0",
+    "navigationBarTitleText": "邻帮帮",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#FDF4E0"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

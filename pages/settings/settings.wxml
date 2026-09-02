@@ -1,0 +1,23 @@
+<view class="container">
+  <view class="group">
+    <view class="cell" bindtap="resetPoints">
+      <text>重置积分</text>
+      <text class="arrow">›</text>
+    </view>
+    <view class="cell" bindtap="clearTasks">
+      <text>清空任务记录</text>
+      <text class="arrow">›</text>
+    </view>
+    <view class="cell" bindtap="about">
+      <text>关于邻帮帮</text>
+      <text class="arrow">›</text>
+    </view>
+  </view>
+
+  <view class="version">
+    <text>邻帮帮 v1.0.0</text>
+  </view>
+
+  <!-- 加载动画 -->
+  <loading show="{{loading}}" text="{{loadingText}}" />
+</view>

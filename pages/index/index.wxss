@@ -1,0 +1,314 @@
+.container {
+  position: relative;
+  min-height: 100vh;
+  background: linear-gradient(160deg, #FFFCF5 0%, #FDF4E0 45%, #F7E9CC 100%);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== 瀑布流背景 ===== */
+.bg-waterfall {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 24rpx;
+  padding: 40rpx 24rpx;
+  box-sizing: border-box;
+}
+
+.bg-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+/* 两列反向运动，制造错落感；使用 translate3d 强制 GPU 合成，滚动丝滑 */
+.col1 {
+  animation: scrollDown 30s linear infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+.col2 {
+  animation: scrollUp 36s linear infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+/* 页面不可见时暂停动画，避免后台持续重绘拖慢新页面 */
+.bg-waterfall.paused .col1,
+.bg-waterfall.paused .col2 {
+  animation-play-state: paused;
+}
+
+@keyframes scrollDown {
+  0% { transform: translate3d(0, -25%, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+@keyframes scrollUp {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(0, -25%, 0); }
+}
+
+/* 结构与动画保持不变，仅将配色改为适配浅米黄底 */
+.bg-card {
+  background: rgba(255, 255, 255, 0.55);
+  border: 1rpx solid rgba(190, 158, 108, 0.22);
+  border-radius: 20rpx;
+  padding: 24rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.bg-card-tag {
+  font-size: 20rpx;
+  color: rgba(122, 96, 60, 0.7);
+  background: rgba(190, 158, 108, 0.14);
+  padding: 4rpx 14rpx;
+  border-radius: 20rpx;
+  align-self: flex-start;
+  margin-bottom: 16rpx;
+}
+
+.bg-card-title {
+  font-size: 24rpx;
+  color: rgba(92, 72, 46, 0.72);
+  line-height: 1.5;
+  margin-bottom: auto;
+}
+
+.bg-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16rpx;
+}
+
+.bg-card-avatar {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  background: rgba(190, 158, 108, 0.22);
+  color: rgba(92, 72, 46, 0.8);
+  font-size: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bg-card-reward {
+  font-size: 22rpx;
+  color: #C4882A;
+  font-weight: bold;
+}
+
+/* ===== 毛玻璃遮罩 ===== */
+/* 降低模糊半径，减轻逐帧重算模糊的开销 */
+.glass-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(253, 244, 224, 0.5);
+  backdrop-filter: blur(10rpx);
+  -webkit-backdrop-filter: blur(10rpx);
+}
+
+/* ===== 前景内容 ===== */
+.foreground {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 40rpx 40rpx 60rpx;
+}
+
+/* 品牌标识 */
+.brand {
+  display: flex;
+  align-items: center;
+  margin-bottom: 30rpx;
+}
+
+.brand-logo {
+  width: 110rpx;
+  height: 110rpx;
+  border-radius: 30rpx;
+  background: linear-gradient(160deg, #FBE3B0 0%, #E8B45C 55%, #CE9232 100%);
+  color: #6B4423;
+  font-size: 60rpx;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 26rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 12rpx 28rpx rgba(190, 140, 50, 0.35),
+              inset 0 3rpx 0 rgba(255, 255, 255, 0.7),
+              inset 0 -5rpx 10rpx rgba(150, 100, 20, 0.25);
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-name {
+  font-size: 56rpx;
+  font-weight: bold;
+  color: #4A3728;
+  letter-spacing: 6rpx;
+}
+
+.brand-sub {
+  font-size: 24rpx;
+  color: #8B7355;
+  margin-top: 6rpx;
+  letter-spacing: 2rpx;
+}
+
+.slogan {
+  margin-bottom: 40rpx;
+}
+
+.slogan-main {
+  font-size: 28rpx;
+  color: #7A6247;
+}
+
+/* 左右大按钮 */
+.btn-row {
+  display: flex;
+  gap: 28rpx;
+}
+
+/* 立体按钮：顶部高光 + 底部内阴影 + 两层外投影，营造浮起感 */
+.btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56rpx 20rpx;
+  border-radius: 36rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.55);
+  background: linear-gradient(170deg, #FCE7B8 0%, #EDBB6A 45%, #D2922F 100%);
+  box-shadow: 0 18rpx 36rpx rgba(186, 133, 44, 0.38),
+              0 6rpx 14rpx rgba(186, 133, 44, 0.22),
+              inset 0 3rpx 0 rgba(255, 255, 255, 0.75),
+              inset 0 -8rpx 14rpx rgba(148, 98, 18, 0.28);
+}
+
+/* 按下时收起投影并变暗，模拟真实按压 */
+.btn:active {
+  transform: scale(0.97);
+  box-shadow: 0 6rpx 14rpx rgba(186, 133, 44, 0.3),
+              inset 0 2rpx 0 rgba(255, 255, 255, 0.4),
+              inset 0 -4rpx 10rpx rgba(148, 98, 18, 0.35);
+}
+
+.btn-icon {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1rpx solid rgba(255, 255, 255, 0.6);
+  color: #6B4423;
+  font-size: 52rpx;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24rpx;
+  box-shadow: inset 0 3rpx 0 rgba(255, 255, 255, 0.7),
+              inset 0 -4rpx 8rpx rgba(148, 98, 18, 0.2);
+}
+
+.btn-title {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #6B4423;
+  margin-bottom: 10rpx;
+  text-shadow: 0 2rpx 0 rgba(255, 255, 255, 0.5);
+}
+
+.btn-desc {
+  font-size: 24rpx;
+  color: rgba(107, 68, 35, 0.72);
+}
+
+/* 积分胶囊 */
+.points-pill {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  margin-top: 50rpx;
+  padding: 18rpx 44rpx;
+  border-radius: 48rpx;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20rpx);
+  -webkit-backdrop-filter: blur(20rpx);
+  border: 1rpx solid rgba(190, 158, 108, 0.3);
+  box-shadow: 0 8rpx 20rpx rgba(186, 133, 44, 0.14),
+              inset 0 2rpx 0 rgba(255, 255, 255, 0.8);
+}
+
+.points-label {
+  font-size: 26rpx;
+  color: #7A6247;
+  margin-right: 16rpx;
+}
+
+.points-value {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #C4882A;
+}
+
+/* ===== 底部导航 ===== */
+.tabbar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  background: rgba(255, 252, 245, 0.72);
+  backdrop-filter: blur(20rpx);
+  -webkit-backdrop-filter: blur(20rpx);
+  border-top: 1rpx solid rgba(190, 158, 108, 0.25);
+  padding: 16rpx 0;
+  padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
+}
+
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12rpx 0;
+}
+
+.tab-item:active {
+  opacity: 0.7;
+}
+
+.tab-icon {
+  font-size: 44rpx;
+  margin-bottom: 6rpx;
+}
+
+.tab-label {
+  font-size: 24rpx;
+  color: #6B5535;
+}

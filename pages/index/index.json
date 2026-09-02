@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "邻帮帮",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "loading": "/components/loading/loading"
+  }
+}
