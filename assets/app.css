@@ -301,6 +301,19 @@
 
 .board-note { font-size: 13px; color: var(--text-faint); }
 
+/* 爱心公益说明条 */
+.charity-note {
+  margin: 0 0 22px;
+  padding: 12px 20px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-light);
+  text-align: center;
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(196, 136, 42, 0), rgba(196, 136, 42, 0.08) 45%, rgba(196, 136, 42, 0));
+  border: 1px solid rgba(196, 136, 42, 0.14);
+}
+
 /* 任务卡片网格 */
 .task-grid {
   display: grid;

@@ -5,7 +5,9 @@
 const AppStore = (function () {
   const POINTS_KEY = 'linbangbang_user_points';
   const TASKS_KEY = 'linbangbang_tasks';
-  const mem = { points: null, tasks: null };
+  const HEART_POOL_KEY = 'linbangbang_heart_pool'; // 爱心池：任务佣金抽成累积，界面不展示
+  const COMMISSION_RATE = 0.2; // 任务佣金抽成比例：20%
+  const mem = { points: null, tasks: null, heartPool: null };
 
   function read(key, fallback) {
     try {
@@ -33,6 +35,14 @@ const AppStore = (function () {
       write(TASKS_KEY, tasks);
     }
     mem.tasks = tasks;
+
+    // 爱心池初始为 0（不随用户积分重置而清空）
+    let heartPool = read(HEART_POOL_KEY, null);
+    if (typeof heartPool !== 'number' || !isFinite(heartPool)) {
+      heartPool = 0;
+      write(HEART_POOL_KEY, heartPool);
+    }
+    mem.heartPool = heartPool;
   }
   init();
 
@@ -62,12 +72,37 @@ const AppStore = (function () {
 
   function clearTasks() { saveTasks([]); }
 
+  function getHeartPool() { return mem.heartPool; }
+
+  /* 任务佣金结算：按比例抽取积分注入爱心池，返回接取者实际所得
+     - 抽成 = Math.floor(reward * 比例)，向下取整，避免凭空产生积分
+     - 接取者实得 = reward - 抽成，余量更友好 */
+  function calcTaskReward(reward, rate) {
+    const rewardNum = Number(reward) || 0;
+    const r = Number(rate) >= 0 && Number(rate) < 1 ? Number(rate) : COMMISSION_RATE;
+    const commission = Math.floor(rewardNum * r);
+    return { gain: rewardNum - commission, commission: commission };
+  }
+
+  // 计算并真正将抽成注入爱心池（仅在接取确认后调用）
+  function settleTaskReward(reward, rate) {
+    const s = calcTaskReward(reward, rate);
+    if (s.commission > 0) {
+      mem.heartPool += s.commission;
+      write(HEART_POOL_KEY, mem.heartPool);
+    }
+    return s;
+  }
+
   return {
     getPoints,
     changePoints,
     getTasks,
     saveTasks,
     resetPoints,
-    clearTasks
+    clearTasks,
+    getHeartPool,
+    calcTaskReward,
+    settleTaskReward
   };
 })();

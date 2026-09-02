@@ -77,9 +77,14 @@
     const t = tasks.find(function (x) { return x.id === id; });
     if (!t || t.status !== 'pending') return;
 
+    // 预估实际所得（不落库），确认后按 20% 抽成注入爱心池
+    const settle = AppStore.calcTaskReward(t.reward);
     const ok = await UI.confirm({
       title: '接取任务',
-      content: '确定接取「' + t.title + '」吗？完成后将获得 ' + t.reward + ' 积分。',
+      content:
+        '确定接取「' + t.title + '」吗？\n\n' +
+        '本单悬赏佣金 ' + t.reward + ' 积分。为把善意传递给更多需要帮助的邻里，平台将从中提取 20%（' + settle.commission + ' 积分），汇入爱心公益池，专项用于关怀社区困难人群。\n\n' +
+        '任务完成后，您将获得 ' + settle.gain + ' 积分。感谢您的爱心参与。',
       confirmText: '接取',
       cancelText: '再想想'
     });
@@ -93,12 +98,13 @@
         target.status = 'done';
         AppStore.saveTasks(list);
       }
-      AppStore.changePoints(t.reward);
+      const result = AppStore.settleTaskReward(t.reward);
+      AppStore.changePoints(result.gain);
       UI.hideLoading();
       syncPoints();
       renderBoard();
       renderMe();
-      UI.toast('接取成功 +' + t.reward, 'success');
+      UI.toast('接取成功，爱心 +' + result.gain + ' 积分', 'success');
     }, 300);
   }
 

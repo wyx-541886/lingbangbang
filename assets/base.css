@@ -280,6 +280,7 @@ button:active { transform: scale(0.97); }
   text-align: center;
   line-height: 1.7;
   word-break: break-word;
+  white-space: pre-line; /* 支持 \n 分段，便于多行说明 */
 }
 
 .modal-btns { display: flex; border-top: 0.5px solid rgba(190, 158, 108, 0.32); }
