@@ -1,6 +1,0 @@
-<view class="loading-mask {{show ? 'show' : ''}}" catchtouchmove="noop">
-  <view class="loading-box">
-    <view class="spinner"></view>
-    <text wx:if="{{text}}" class="loading-text">{{text}}</text>
-  </view>
-</view>
