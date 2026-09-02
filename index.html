@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>邻帮帮 · 邻里互助任务平台</title>
+<link rel="stylesheet" href="assets/base.css">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+  <!-- ===== 瀑布流背景装饰层（保持原版视觉氛围） ===== -->
+  <div class="deco-layer" aria-hidden="true">
+    <div class="wf-col wf-down" id="wfCol1"></div>
+    <div class="wf-col wf-up" id="wfCol2"></div>
+  </div>
+  <div class="veil" aria-hidden="true"></div>
+
+  <div class="app">
+
+    <!-- ===== 顶部导航 ===== -->
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand" data-nav="home" role="button" tabindex="0">
+          <span class="brand-badge">邻</span>
+          <span class="brand-name">邻帮帮</span>
+          <span class="brand-sub">邻里互助 · 温暖社区</span>
+        </div>
+        <nav class="main-nav">
+          <a class="nav-link active" data-nav="home">任务广场</a>
+          <a class="nav-link" data-nav="publish">发布任务</a>
+          <a class="nav-link" data-nav="me">我的</a>
+          <a class="nav-link" data-nav="settings">设置</a>
+        </nav>
+        <div class="pts-pill">
+          <span class="pts-label">我的积分</span>
+          <span class="pts-value" id="ptsTop">100</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- ============ 视图：任务广场 ============ -->
+      <section class="view active" id="view-home">
+        <div class="hero">
+          <div class="hero-main">
+            <h1 class="hero-title">发布任务赚积分，接取任务攒积分</h1>
+            <p class="hero-sub">取个快递、遛次狗、陪老人看诊、辅导一次作业……邻里搭把手，温暖就在身边。</p>
+            <div class="hero-actions">
+              <button class="big-btn" data-nav="publish">
+                <span class="big-ic">发</span>
+                <span class="big-txt"><b>发布任务</b><i>悬赏积分，等邻里接单</i></span>
+              </button>
+              <button class="big-btn alt" id="btnGrab">
+                <span class="big-ic">接</span>
+                <span class="big-txt"><b>接取任务</b><i>帮上忙，完成领积分</i></span>
+              </button>
+            </div>
+          </div>
+          <div class="hero-side">
+            <span class="hs-label">当前可用积分</span>
+            <span class="hs-value" id="ptsHero">100</span>
+          </div>
+        </div>
+
+        <div class="board-head">
+          <div class="seg" id="segStatus">
+            <button class="seg-btn active" data-status="all">全部</button>
+            <button class="seg-btn" data-status="pending">待接取</button>
+            <button class="seg-btn" data-status="done">已完成</button>
+          </div>
+          <span class="board-note" id="boardNote"></span>
+        </div>
+        <div class="task-grid" id="taskGrid"></div>
+        <div class="empty" id="emptyBoard" hidden>
+          <span class="empty-ic">&#128235;</span>
+          <p class="empty-tx">这里还没有任务</p>
+          <p class="empty-sub">点右上角「发布任务」，开启第一单互助吧</p>
+        </div>
+      </section>
+
+      <!-- ============ 视图：发布任务 ============ -->
+      <section class="view" id="view-publish" hidden>
+        <div class="pane publish-pane">
+          <div class="pane-head">
+            <h2 class="pane-title">发布任务</h2>
+            <p class="pane-sub">写清楚要帮忙的事，任务发布后会从你的积分中扣除悬赏。</p>
+          </div>
+          <div class="pts-bar">
+            <span class="pb-label">当前积分</span>
+            <span class="pb-value" id="pubPoints">100</span>
+          </div>
+          <form id="pubForm" autocomplete="off" novalidate>
+            <div class="field">
+              <label class="f-label" for="pubTitle">任务标题</label>
+              <input class="input" id="pubTitle" type="text" maxlength="30" placeholder="例如：帮忙遛狗半小时">
+            </div>
+            <div class="field">
+              <label class="f-label" for="pubDesc">任务说明</label>
+              <textarea class="textarea" id="pubDesc" rows="4" maxlength="200" placeholder="详细描述任务内容、时间、地点等信息"></textarea>
+              <span class="f-count" id="pubDescCount">0 / 200</span>
+            </div>
+            <div class="field">
+              <label class="f-label">付出积分</label>
+              <div class="reward-chips" id="rewardChips">
+                <button type="button" class="chip" data-val="5">5</button>
+                <button type="button" class="chip" data-val="10">10</button>
+                <button type="button" class="chip" data-val="20">20</button>
+                <button type="button" class="chip" data-val="50">50</button>
+              </div>
+              <input class="input reward-custom" id="pubReward" type="number" min="1" inputmode="numeric" placeholder="或自定义积分数量">
+            </div>
+            <button type="submit" class="btn-gold btn-lg" id="pubSubmit">发布任务</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ============ 视图：我的 ============ -->
+      <section class="view" id="view-me" hidden>
+        <div class="pane me-pane">
+          <div class="profile">
+            <div class="avatar">邻</div>
+            <div class="pf-info">
+              <div class="pf-name">邻帮帮用户</div>
+              <div class="pf-sub">社区好邻居</div>
+            </div>
+          </div>
+          <div class="stats">
+            <div class="stat stat-pts">
+              <span class="st-label">我的积分</span>
+              <span class="st-big" id="mePts">100</span>
+            </div>
+            <div class="stat">
+              <span class="st-label">发布任务</span>
+              <span class="st-value" id="mePub">0</span>
+            </div>
+            <div class="stat">
+              <span class="st-label">已完成接取</span>
+              <span class="st-value" id="meDone">0</span>
+            </div>
+          </div>
+          <div class="me-board">
+            <h3 class="me-board-title">我的任务</h3>
+            <div class="task-grid narrow" id="meTaskGrid"></div>
+            <div class="empty small" id="meEmpty" hidden>
+              <p class="empty-tx">还没有任务记录</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 视图：设置 ============ -->
+      <section class="view" id="view-settings" hidden>
+        <div class="pane set-pane">
+          <div class="pane-head">
+            <h2 class="pane-title">设置</h2>
+            <p class="pane-sub">管理你的演示数据。这些操作仅影响本浏览器的记录。</p>
+          </div>
+          <div class="set-group">
+            <button class="cell" data-act="resetPts">
+              <span class="cell-tx"><b>重置积分</b><i>把积分恢复为初始的 100</i></span>
+              <span class="cell-arrow">&#8250;</span>
+            </button>
+            <button class="cell" data-act="clearTasks">
+              <span class="cell-tx"><b>清空任务记录</b><i>删除本浏览器里的全部任务数据</i></span>
+              <span class="cell-arrow">&#8250;</span>
+            </button>
+            <button class="cell" data-act="about">
+              <span class="cell-tx"><b>关于邻帮帮</b><i>了解这个社区互助小平台</i></span>
+              <span class="cell-arrow">&#8250;</span>
+            </button>
+          </div>
+          <div class="ver">邻帮帮 v1.0.0 · 网页版</div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="foot">数据保存在当前浏览器（localStorage）· 与微信小程序互不相通</footer>
+  </div>
+
+  <script src="assets/store.js"></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/main.js"></script>
+</body>
+</html>

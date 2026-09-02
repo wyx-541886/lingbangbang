@@ -1,0 +1,302 @@
+/* ============================================================
+   邻帮帮 · 基础层：主题变量 / 重置 / 背景瀑布 / 通用组件
+   视觉沿袭小程序原版：浅米黄 + 金色立体 + 毛玻璃
+   ============================================================ */
+
+:root {
+  --bg-from: #FFFCF5;
+  --bg-mid: #FDF4E0;
+  --bg-to: #F7E9CC;
+  --text-main: #4A3728;
+  --text-sub: #7A6247;
+  --text-light: #8B7355;
+  --text-faint: #A08A6E;
+  --accent: #C4882A;
+  --accent-deep: #6B4423;
+  --line: rgba(190, 158, 108, 0.28);
+  --glass: rgba(255, 252, 245, 0.66);
+  --glass-strong: rgba(255, 252, 245, 0.86);
+  --gold-grad: linear-gradient(170deg, #FCE7B8 0%, #EDBB6A 45%, #D2922F 100%);
+  --gold-grad-deep: linear-gradient(170deg, #F3D08F 0%, #E0A63C 55%, #B97A1F 100%);
+  --shadow-gold: 0 14px 30px rgba(186, 133, 44, 0.3), 0 4px 10px rgba(186, 133, 44, 0.18);
+  --radius-card: 18px;
+  --radius-pill: 999px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: var(--font);
+  color: var(--text-main);
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 700px at 8% -8%, rgba(255, 243, 210, 0.9), transparent 60%),
+    radial-gradient(1000px 640px at 108% 112%, rgba(226, 178, 96, 0.35), transparent 62%),
+    linear-gradient(160deg, var(--bg-from) 0%, var(--bg-mid) 45%, var(--bg-to) 100%);
+  background-attachment: fixed;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+
+button { font-family: inherit; border: none; background: none; cursor: pointer; color: inherit; }
+
+/* ============================================================
+   瀑布流背景装饰（宽屏保留原版两列错落 + 循环流动）
+   ============================================================ */
+.deco-layer {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  padding: 48px 6vw;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wf-col {
+  width: 300px;
+  max-width: 26vw;
+  flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.wf-track {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  will-change: transform;
+}
+
+.wf-down .wf-track { animation: wfDown 46s linear infinite; }
+.wf-up .wf-track { animation: wfUp 58s linear infinite; }
+
+@keyframes wfDown {
+  0%   { transform: translate3d(0, -50%, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+@keyframes wfUp {
+  0%   { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(0, -50%, 0); }
+}
+
+.wf-card {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(190, 158, 108, 0.2);
+  border-radius: 18px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 6px 18px rgba(150, 110, 40, 0.06);
+}
+
+.wf-tag {
+  align-self: flex-start;
+  font-size: 12px;
+  color: rgba(122, 96, 60, 0.72);
+  background: rgba(190, 158, 108, 0.16);
+  padding: 3px 12px;
+  border-radius: 999px;
+  margin-bottom: 14px;
+}
+
+.wf-title {
+  font-size: 15px;
+  color: rgba(92, 72, 46, 0.66);
+  line-height: 1.5;
+  margin-bottom: auto;
+}
+
+.wf-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+.wf-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(190, 158, 108, 0.24);
+  color: rgba(92, 72, 46, 0.8);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wf-reward { font-size: 14px; color: var(--accent); font-weight: 700; }
+
+/* 半透明玻璃遮罩：让瀑布流与前景自然融合 */
+.veil {
+  position: fixed;
+  inset: 0;
+  background: rgba(253, 244, 224, 0.42);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* 平滑按压反馈（金色系可交互元素共用） */
+button, .chip, .seg-btn, .cell, .nav-link, .brand {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.24s ease,
+              background 0.24s ease,
+              opacity 0.2s ease,
+              color 0.2s ease;
+}
+
+button:active { transform: scale(0.97); }
+
+/* ============================================================
+   Loading 加载动画（由原版 loading 组件转换）
+   ============================================================ */
+.loading-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(74, 55, 40, 0.26);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.18s ease, visibility 0.18s ease;
+}
+
+.loading-mask.show { opacity: 1; visibility: visible; }
+
+.loading-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 26px 32px;
+  border-radius: 16px;
+  background: var(--glass-strong);
+  border: 0.5px solid rgba(190, 158, 108, 0.32);
+  box-shadow: 0 16px 40px rgba(120, 90, 40, 0.2);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid rgba(196, 136, 42, 0.2);
+  border-top-color: var(--accent);
+  animation: lb-spin 0.75s linear infinite;
+}
+
+@keyframes lb-spin { to { transform: rotate(360deg); } }
+
+.loading-text {
+  margin-top: 14px;
+  font-size: 13px;
+  color: #8B6B3A;
+  letter-spacing: 1px;
+}
+
+/* ============================================================
+   Toast 轻提示
+   ============================================================ */
+.toast {
+  position: fixed;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -40%);
+  background: rgba(56, 44, 30, 0.92);
+  color: #fff;
+  padding: 14px 22px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+  max-width: 260px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 1100;
+  pointer-events: none;
+}
+
+.toast.show { opacity: 1; visibility: visible; transform: translate(-50%, -50%); }
+
+.toast .t-icon {
+  display: block;
+  font-size: 30px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+/* ============================================================
+   Modal 确认对话框
+   ============================================================ */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(40, 28, 12, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.18s ease, visibility 0.18s ease;
+  z-index: 1000;
+}
+
+.modal-mask.show { opacity: 1; visibility: visible; }
+
+.modal-box {
+  width: min(360px, 84vw);
+  background: #FFFCF8;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(60, 40, 10, 0.3);
+  transform: scale(0.94) translateY(6px);
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.modal-mask.show .modal-box { transform: scale(1) translateY(0); }
+
+.modal-title {
+  padding: 24px 20px 6px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-main);
+  text-align: center;
+}
+
+.modal-content {
+  padding: 6px 24px 24px;
+  font-size: 14px;
+  color: var(--text-sub);
+  text-align: center;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.modal-btns { display: flex; border-top: 0.5px solid rgba(190, 158, 108, 0.32); }
+
+.modal-btn {
+  flex: 1;
+  text-align: center;
+  padding: 14px 0;
+  font-size: 16px;
+  color: var(--accent);
+  transition: background 0.2s ease;
+}
+
+.modal-btn:hover { background: rgba(190, 158, 108, 0.08); }
+.modal-btn + .modal-btn { border-left: 0.5px solid rgba(190, 158, 108, 0.32); }
+.modal-btn.cancel { color: var(--text-faint); }
+
+@media (prefers-reduced-motion: reduce) {
+  .wf-down .wf-track, .wf-up .wf-track { animation: none; }
+}
