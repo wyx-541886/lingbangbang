@@ -20,23 +20,34 @@
   }
 
   /* ===================== 任务卡片 HTML ===================== */
+  const TASK_STATUS = {
+    pending: { cls: 'pending', txt: '待接取' },
+    doing:   { cls: 'doing',   txt: '进行中' },
+    done:    { cls: 'done',    txt: '已完成' }
+  };
+
   function cardHtml(t, withAction) {
-    const done = t.status === 'done';
-    const statusTxt = done ? '已完成' : '待接取';
-    return '<article class="task-card st-' + (done ? 'done' : 'pending') + '">' +
-        '<div class="tc-head">' +
-          '<span class="tc-time">' + escHtml(t.createTime) + '</span>' +
-          '<span class="tc-state ' + (done ? 'done' : 'pending') + '">' + statusTxt + '</span>' +
-        '</div>' +
-        '<h3 class="tc-title">' + escHtml(t.title) + '</h3>' +
-        '<p class="tc-desc">' + escHtml(t.desc) + '</p>' +
-        '<div class="tc-foot">' +
-          '<span class="tc-reward">悬赏 <b>+' + t.reward + ' 积分</b></span>' +
-          (withAction && !done
-            ? '<button class="accept-btn" data-id="' + t.id + '">接取任务</button>'
-            : '<span class="done-tag">&#10003; 已完成</span>') +
-        '</div>' +
-      '</article>';
+    const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
+    let action = '<span class="done-tag">&#10003; 已完成</span>';
+    if (withAction) {
+      if (t.status === 'pending') {
+        action = '<button class="accept-btn" data-id="' + t.id + '">接取任务</button>';
+      } else if (t.status === 'doing') {
+        action = '<button class="deliver-btn" data-id="' + t.id + '">交付任务</button>';
+      }
+    }
+    return '<article class="task-card st-' + st.cls + '">' +
+      '<div class="tc-head">' +
+        '<span class="tc-time">' + escHtml(t.createTime) + '</span>' +
+        '<span class="tc-state ' + st.cls + '">' + st.txt + '</span>' +
+      '</div>' +
+      '<h3 class="tc-title">' + escHtml(t.title) + '</h3>' +
+      '<p class="tc-desc">' + escHtml(t.desc) + '</p>' +
+      '<div class="tc-foot">' +
+        '<span class="tc-reward">悬赏 <b>+' + t.reward + ' 积分</b></span>' +
+        action +
+      '</div>' +
+    '</article>';
   }
 
   function renderList(gridEl, tasks, emptyEl, withAction) {
@@ -57,9 +68,8 @@
 
     renderList($('taskGrid'), shown, $('emptyBoard'), true);
 
-    const pending = all.filter(function (t) { return t.status === 'pending'; }).length;
-    const done = all.length - pending;
-    $('boardNote').textContent = '共 ' + all.length + ' 条 · 待接取 ' + pending + ' · 已完成 ' + done;
+    const cnt = function (s) { return all.filter(function (t) { return t.status === s; }).length; };
+    $('boardNote').textContent = '共 ' + all.length + ' 条 · 待接取 ' + cnt('pending') + ' · 进行中 ' + cnt('doing') + ' · 已完成 ' + cnt('done');
   }
 
   function setFilter(f) {
@@ -77,14 +87,14 @@
     const t = tasks.find(function (x) { return x.id === id; });
     if (!t || t.status !== 'pending') return;
 
-    // 预估实际所得（不落库），确认后按 20% 抽成注入爱心池
+    // 预估实际所得（不落库），交付时按 20% 抽成注入爱心池
     const settle = AppStore.calcTaskReward(t.reward);
     const ok = await UI.confirm({
       title: '接取任务',
       content:
         '确定接取「' + t.title + '」吗？\n\n' +
         '本单悬赏佣金 ' + t.reward + ' 积分。为把善意传递给更多需要帮助的邻里，平台将从中提取 20%（' + settle.commission + ' 积分），汇入爱心公益池，专项用于关怀社区困难人群。\n\n' +
-        '任务完成后，您将获得 ' + settle.gain + ' 积分。感谢您的爱心参与。',
+        '接单后请认真按时交付：发布者满意将记一次好评（信誉 +2）；若敷衍、拖延的消极完成，信誉将被扣减。',
       confirmText: '接取',
       cancelText: '再想想'
     });
@@ -94,17 +104,67 @@
     setTimeout(function () {
       const list = AppStore.getTasks();
       const target = list.find(function (x) { return x.id === id; });
-      if (target) {
-        target.status = 'done';
+      if (target && target.status === 'pending') {
+        target.status = 'doing';
         AppStore.saveTasks(list);
       }
-      const result = AppStore.settleTaskReward(t.reward);
-      AppStore.changePoints(result.gain);
       UI.hideLoading();
       syncPoints();
       renderBoard();
       renderMe();
-      UI.toast('接取成功，爱心 +' + result.gain + ' 积分', 'success');
+      UI.toast('接单成功，完成后记得交付任务', 'success');
+    }, 300);
+  }
+
+  /* ===================== 交付任务（发布者验收 → 信誉结算） ===================== */
+  async function deliverTask(id) {
+    const tasks = AppStore.getTasks();
+    const t = tasks.find(function (x) { return x.id === id; });
+    if (!t || t.status !== 'doing') return;
+
+    const settle = AppStore.calcTaskReward(t.reward);
+    const quality = await UI.choice({
+      title: '交付任务',
+      content:
+        '「' + t.title + '」已由你完成，请选择本次交付表现，作为发布者验收结果：\n\n' +
+        '认真完成 → 邻里满意，信誉 +2，实得 ' + settle.gain + ' 积分\n' +
+        '消极完成 → 敷衍/拖延交付，信誉 -5（本单积分仍照常结算）',
+      buttons: [
+        { text: '认真完成 · 邻里满意', value: 'good' },
+        { text: '消极完成 · 敷衍交付', value: 'bad', cls: 'cancel' }
+      ]
+    });
+    if (!quality) return;
+
+    UI.showLoading('正在结算...');
+    setTimeout(function () {
+      const list = AppStore.getTasks();
+      const target = list.find(function (x) { return x.id === id; });
+      if (!target || target.status !== 'doing') {
+        UI.hideLoading();
+        return;
+      }
+      target.status = 'done';
+      AppStore.saveTasks(list);
+
+      const result = AppStore.settleTaskReward(t.reward);
+      AppStore.changePoints(result.gain);
+      if (quality === 'good') {
+        AppStore.changeCredit(2, '任务《' + t.title + '》认真按时交付，获邻里好评');
+      } else {
+        AppStore.changeCredit(-5, '任务《' + t.title + '》被发布者反馈敷衍、消极完成');
+      }
+
+      UI.hideLoading();
+      syncPoints();
+      renderBoard();
+      renderMe();
+      UI.toast(
+        quality === 'good'
+          ? '交付成功 · 信誉 +2 · 爱心 +' + result.gain + ' 积分'
+          : '已结算 · 本次消极交付，信誉 -5',
+        quality === 'good' ? 'success' : undefined
+      );
     }, 300);
   }
 
@@ -170,11 +230,52 @@
   }
 
   /* ===================== 我的 ===================== */
+  function creditLevel(score) {
+    if (score >= 90) return { txt: '邻里之星', cls: 'lv-ex' };
+    if (score >= 75) return { txt: '靠谱好邻居', cls: 'lv-good' };
+    if (score >= 60) return { txt: '信用一般', cls: 'lv-mid' };
+    return { txt: '待改进', cls: 'lv-low' };
+  }
+
+  // 信誉分卡片 + 变动明细
+  function renderCredit() {
+    const score = AppStore.getCreditScore();
+    const me = $('meCredit');
+    if (me) me.textContent = score;
+
+    const badge = $('creditBadge');
+    const lv = creditLevel(score);
+    if (badge) {
+      badge.textContent = lv.txt;
+      badge.className = 'st-badge ' + lv.cls;
+    }
+
+    const listEl = $('creditList');
+    if (!listEl) return;
+    const log = AppStore.getCreditHistory();
+    const emptyEl = $('creditEmpty');
+    if (log.length === 0) {
+      listEl.innerHTML = '';
+      if (emptyEl) emptyEl.hidden = false;
+      return;
+    }
+    if (emptyEl) emptyEl.hidden = true;
+    listEl.innerHTML = log.slice(0, 12).map(function (r) {
+      const up = r.delta > 0;
+      return '<li class="credit-item">' +
+        '<span class="ci-delta ' + (up ? 'up' : 'down') + '">' + (up ? '+' : '') + r.delta + '</span>' +
+        '<span class="ci-tx">' + escHtml(r.text) + '</span>' +
+        '<span class="ci-time">' + escHtml(r.time) + '</span>' +
+      '</li>';
+    }).join('');
+  }
+
   function renderMe() {
     const tasks = AppStore.getTasks();
     $('mePub').textContent = tasks.length;
     $('meDone').textContent = tasks.filter(function (t) { return t.status === 'done'; }).length;
-    renderList($('meTaskGrid'), tasks.slice(0, 12), $('meEmpty'), false);
+    renderCredit();
+    renderList($('meTaskGrid'), tasks.slice(0, 12), $('meEmpty'), true);
   }
 
   /* ===================== 设置 ===================== */
@@ -197,6 +298,22 @@
         renderBoard();
         renderMe();
         UI.toast('已重置', 'success');
+        state.acting = false;
+      }, 300);
+    } else if (act === 'resetCredit') {
+      const ok = await UI.confirm({
+        title: '重置信誉分',
+        content: '将信誉恢复为初始的 100 并清空信誉记录，确定吗？',
+        confirmText: '重置'
+      });
+      if (!ok) return;
+      state.acting = true;
+      UI.showLoading('正在重置信誉...');
+      setTimeout(function () {
+        AppStore.resetCredit();
+        UI.hideLoading();
+        renderMe();
+        UI.toast('信誉已重置', 'success');
         state.acting = false;
       }, 300);
     } else if (act === 'clearTasks') {
@@ -261,7 +378,10 @@
       if (act) { runSetting(act.dataset.act); return; }
 
       const ab = e.target.closest ? e.target.closest('.accept-btn') : null;
-      if (ab) { acceptTask(ab.dataset.id); }
+      if (ab) { acceptTask(ab.dataset.id); return; }
+
+      const db = e.target.closest ? e.target.closest('.deliver-btn') : null;
+      if (db) { deliverTask(db.dataset.id); }
     });
 
     // 接取任务快捷按钮：跳到广场并切到“待接取”

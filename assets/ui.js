@@ -90,26 +90,41 @@ const UI = (function () {
     const btns = modalEl.querySelector('.modal-btns');
     btns.innerHTML = '';
 
-    function close(ok) {
+    function close(v) {
       modalEl.classList.remove('show');
-      if (opts.onClose) opts.onClose(ok);
+      if (opts.onClose) opts.onClose(v);
     }
 
-    if (showCancel) {
-      const cancelBtn = document.createElement('button');
-      cancelBtn.type = 'button';
-      cancelBtn.className = 'modal-btn cancel';
-      cancelBtn.textContent = cancelText;
-      cancelBtn.addEventListener('click', function () { close(false); });
-      btns.appendChild(cancelBtn);
-    }
+    // 自定义按钮组：每项 { text, value, cls }，点按后回传对应 value
+    if (Array.isArray(opts.buttons) && opts.buttons.length) {
+      opts.buttons.forEach(function (b) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'modal-btn' + (b.cls ? ' ' + b.cls : '');
+        btn.textContent = b.text || '确定';
+        btn.addEventListener('click', function () {
+          close(b.value === undefined ? true : b.value);
+        });
+        btns.appendChild(btn);
+      });
+      if (opts.colButtons) btns.classList.add('col');
+    } else {
+      if (showCancel) {
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'modal-btn cancel';
+        cancelBtn.textContent = cancelText;
+        cancelBtn.addEventListener('click', function () { close(false); });
+        btns.appendChild(cancelBtn);
+      }
 
-    const okBtn = document.createElement('button');
-    okBtn.type = 'button';
-    okBtn.className = 'modal-btn';
-    okBtn.textContent = confirmText;
-    okBtn.addEventListener('click', function () { close(true); });
-    btns.appendChild(okBtn);
+      const okBtn = document.createElement('button');
+      okBtn.type = 'button';
+      okBtn.className = 'modal-btn';
+      okBtn.textContent = confirmText;
+      okBtn.addEventListener('click', function () { close(true); });
+      btns.appendChild(okBtn);
+    }
 
     modalEl.classList.add('show');
   }
@@ -117,6 +132,13 @@ const UI = (function () {
   function confirm(opts) {
     return new Promise(function (resolve) {
       modal(Object.assign({}, opts, { onClose: function (ok) { resolve(ok); } }));
+    });
+  }
+
+  // 多选项弹窗：resolves 为用户所点按钮的 value（关闭弹窗视为 null）
+  function choice(opts) {
+    return new Promise(function (resolve) {
+      modal(Object.assign({}, opts, { onClose: function (v) { resolve(v); } }));
     });
   }
 
@@ -166,5 +188,5 @@ const UI = (function () {
     });
   }
 
-  return { showLoading, hideLoading, toast, modal, confirm, fillWaterfall };
+  return { showLoading, hideLoading, toast, modal, confirm, choice, fillWaterfall };
 })();

@@ -68,6 +68,7 @@
           <div class="seg" id="segStatus">
             <button class="seg-btn active" data-status="all">全部</button>
             <button class="seg-btn" data-status="pending">待接取</button>
+            <button class="seg-btn" data-status="doing">进行中</button>
             <button class="seg-btn" data-status="done">已完成</button>
           </div>
           <span class="board-note" id="boardNote"></span>
@@ -132,13 +133,29 @@
               <span class="st-label">我的积分</span>
               <span class="st-big" id="mePts">100</span>
             </div>
+            <div class="stat stat-credit">
+              <span class="st-label">信誉分</span>
+              <span class="st-big" id="meCredit">100</span>
+              <span class="st-badge" id="creditBadge">邻里之星</span>
+            </div>
             <div class="stat">
               <span class="st-label">发布任务</span>
               <span class="st-value" id="mePub">0</span>
             </div>
             <div class="stat">
-              <span class="st-label">已完成接取</span>
+              <span class="st-label">已完成交付</span>
               <span class="st-value" id="meDone">0</span>
+            </div>
+          </div>
+          <div class="credit-pane">
+            <div class="credit-head">
+              <h3 class="me-board-title credit-title">信誉记录</h3>
+              <p class="credit-tip">认真完成接取的任务并按时交付，邻里好评 +2 信誉；敷衍、拖延的消极完成将被差评，信誉 -5。满分 100，长期低于 60 将影响后续接单。</p>
+            </div>
+            <ul class="credit-list" id="creditList"></ul>
+            <div class="empty small" id="creditEmpty" hidden>
+              <p class="empty-tx">暂无信誉变动</p>
+              <p class="empty-sub">认真完成一次任务，就能积累第一条好评</p>
             </div>
           </div>
           <div class="me-board">
@@ -161,6 +178,10 @@
           <div class="set-group">
             <button class="cell" data-act="resetPts">
               <span class="cell-tx"><b>重置积分</b><i>把积分恢复为初始的 100</i></span>
+              <span class="cell-arrow">&#8250;</span>
+            </button>
+            <button class="cell" data-act="resetCredit">
+              <span class="cell-tx"><b>重置信誉分</b><i>信誉恢复为初始的 100 并清空记录</i></span>
               <span class="cell-arrow">&#8250;</span>
             </button>
             <button class="cell" data-act="clearTasks">
