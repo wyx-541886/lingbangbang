@@ -1791,3 +1791,241 @@
 @media (max-width: 700px) {
   .tc-prio { margin-top: 0; }
 }
+
+/* ===================== 账户登记（手机号绑定）与隐私 ===================== */
+/* 顶栏账户胶囊 */
+.acct-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(170deg, rgba(252, 231, 184, 0.92), rgba(237, 187, 106, 0.6));
+  border: 1px solid rgba(196, 136, 42, 0.38);
+  box-shadow: 0 4px 12px rgba(186, 133, 44, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.acct-pill:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(186, 133, 44, 0.26); }
+.acct-pill .ap-label { font-size: 12px; color: #8A6A22; }
+.acct-pill .ap-value { font-size: 14px; font-weight: 800; color: var(--accent-deep); font-variant-numeric: tabular-nums; }
+.acct-pill .ap-value.guest { color: var(--text-faint); font-weight: 700; }
+
+/* “我的”页：登记状态行 */
+.pf-acc { margin-top: 9px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.acc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 11px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  color: #4E7A2F;
+  background: rgba(120, 150, 100, 0.14);
+  border: 1px solid rgba(120, 150, 100, 0.4);
+  white-space: nowrap;
+}
+.acc-badge i { font-style: normal; font-weight: 400; color: rgba(78, 122, 47, 0.75); }
+.acc-bound { font-size: 12px; color: var(--text-faint); }
+.acc-reg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--accent-deep);
+  background: linear-gradient(170deg, #FFF3D6, #F3D69B);
+  border: 1px solid rgba(196, 136, 42, 0.45);
+  box-shadow: 0 3px 8px rgba(186, 133, 44, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.acc-reg-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(186, 133, 44, 0.28); }
+.acc-reg-btn i { font-style: normal; }
+
+/* 设置页：小节标题与危险项 */
+.set-sec-title { margin: 6px 0 13px; font-size: 16px; font-weight: 800; color: var(--text-main); }
+.set-pane .set-sec-title + .set-group { margin-top: 0; }
+.cell.danger-cell .cell-tx b { color: #C4553F; }
+.cell.danger-cell .cell-tx i { color: rgba(196, 85, 63, 0.7); }
+.cell.danger-cell:hover { background: rgba(255, 246, 244, 0.9); }
+
+/* 通用：危险色 modal 按钮（解绑/注销等确认钮） */
+.modal-btn.danger { color: #C4553F; }
+
+/* ===================== 手机号登记弹窗 ===================== */
+.reg-mask .reg-panel {
+  position: relative;
+  width: min(430px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: #FFFCF8;
+  border-radius: 20px;
+  padding: 30px 28px 24px;
+  box-shadow: 0 24px 60px rgba(60, 40, 10, 0.3);
+  transform: scale(0.94) translateY(6px);
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reg-mask.show .reg-panel { transform: scale(1) translateY(0); }
+.reg-mask .modal-x { top: 10px; right: 10px; }
+
+.reg-head { text-align: center; padding: 0 8px 4px; }
+.reg-ic {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 12px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--accent-deep);
+  background: linear-gradient(170deg, #FCE7B8, #EDBB6A 55%, #D2922F);
+  box-shadow: var(--shadow-gold), inset 0 2px 0 rgba(255, 255, 255, 0.7);
+}
+.reg-title { font-size: 20px; font-weight: 800; color: var(--text-main); letter-spacing: 1px; }
+.reg-sub { margin-top: 7px; font-size: 12.5px; line-height: 1.7; color: var(--text-faint); }
+
+/* 隐私承诺横幅 */
+.reg-note {
+  margin: 16px 0 2px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.75;
+  color: #8A6A22;
+  background: linear-gradient(90deg, rgba(255, 240, 200, 0.55), rgba(236, 196, 112, 0.18));
+  border: 1px dashed rgba(196, 136, 42, 0.5);
+  text-align: left;
+}
+.reg-note b { color: #7A4E1D; }
+
+.reg-field { margin-top: 16px; }
+.reg-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-deep);
+  margin-bottom: 8px;
+}
+.reg-label .need { color: #C4553F; font-weight: 600; }
+.reg-code-row { display: flex; gap: 10px; }
+.reg-code-row .input { flex: 1; }
+.reg-send {
+  flex-shrink: 0;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-deep);
+  background: linear-gradient(170deg, #FFF3D6, #F3D69B);
+  border: 1px solid rgba(196, 136, 42, 0.45);
+  white-space: nowrap;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.reg-send:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 5px 12px rgba(186, 133, 44, 0.24); }
+.reg-send:disabled { opacity: 0.55; cursor: not-allowed; }
+.reg-phone-input { letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+
+/* 协议勾选行 */
+.reg-agree {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid var(--line);
+}
+.reg-agree input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.reg-agree-tx { font-size: 12.5px; line-height: 1.7; color: var(--text-sub); }
+.reg-link {
+  display: inline;
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.reg-link:hover { color: var(--accent-deep); }
+
+.reg-err {
+  min-height: 18px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: #C4553F;
+}
+.reg-submit {
+  width: 100%;
+  margin-top: 4px;
+  padding: 15px 0;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--accent-deep);
+  background: var(--gold-grad);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: var(--shadow-gold), inset 0 2px 0 rgba(255, 255, 255, 0.7);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.reg-submit:hover { box-shadow: 0 18px 36px rgba(186, 133, 44, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.75); }
+.reg-submit:active { transform: scale(0.98); }
+.reg-submit:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+.reg-foot { margin-top: 14px; text-align: center; font-size: 11px; line-height: 1.7; color: var(--text-faint); }
+
+/* 账户信息卡（登记后展示） */
+.acc-card { padding: 4px 2px 0; }
+.acc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 2px;
+  border-bottom: 0.5px solid rgba(190, 158, 108, 0.24);
+  font-size: 14px;
+}
+.acc-row:last-child { border-bottom: none; }
+.acc-row .k { color: var(--text-faint); font-size: 13px; flex-shrink: 0; }
+.acc-row .v { color: var(--text-main); font-weight: 700; word-break: break-all; text-align: right; }
+.acc-masked { font-variant-numeric: tabular-nums; letter-spacing: 0.5px; }
+.acc-sec {
+  margin-top: 16px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px dashed rgba(190, 158, 108, 0.4);
+  text-align: left;
+}
+
+@media (max-width: 700px) {
+  .acct-pill .ap-label { display: none; }
+  .reg-mask .reg-panel { padding: 24px 18px 20px; }
+}
+
+/* 设置页多个分组之间留足呼吸感 */
+.set-group + .set-sec-title { margin-top: 32px; }
+
+/* 弹窗按钮竖排（多操作账户卡等） */
+.modal-btns.col { flex-direction: column; }
+.modal-btns.col .modal-btn { width: 100%; }
+.modal-btns.col .modal-btn + .modal-btn {
+  border-left: none;
+  border-top: 0.5px solid rgba(190, 158, 108, 0.32);
+}

@@ -79,6 +79,7 @@ const UI = (function () {
   /* ---------- Modal ---------- */
   function modal(opts) {
     if (!modalEl) modalEl = buildModal();
+    modalEl.style.zIndex = 1001; // 通用弹窗置于各专用面板（申诉/悬赏/评分/注册登记等，均为 1000）之上
     const title = opts.title || '';
     const content = opts.content || '';
     const confirmText = opts.confirmText || '确定';

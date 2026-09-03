@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>邻帮帮 · 邻里互助任务平台</title>
-<link rel="stylesheet" href="assets/base.css?v=20260903j">
-<link rel="stylesheet" href="assets/app.css?v=20260903j">
+<link rel="stylesheet" href="assets/base.css?v=20260903k">
+<link rel="stylesheet" href="assets/app.css?v=20260903k">
 </head>
 <body>
 
@@ -36,6 +36,10 @@
           <span class="pts-label">我的积分</span>
           <span class="pts-value" id="ptsTop">100</span>
         </div>
+        <button class="acct-pill" type="button" data-acct="top" aria-label="手机号登记与账户信息">
+          <span class="ap-label" id="apTopLabel">账号</span>
+          <span class="ap-value" id="apTopValue">未登记</span>
+        </button>
       </div>
     </header>
 
@@ -126,10 +130,11 @@
       <section class="view" id="view-me" hidden>
         <div class="pane me-pane">
           <div class="profile">
-            <div class="avatar">邻</div>
+            <div class="avatar" id="meAvatar">邻</div>
             <div class="pf-info">
-              <div class="pf-name">邻帮帮用户</div>
+              <div class="pf-name" id="pfName">邻帮帮用户</div>
               <div class="pf-sub">社区好邻居</div>
+              <div class="pf-acc" id="pfAccount"></div>
               <div class="pf-honor" id="pfTitle"></div>
             </div>
           </div>
@@ -240,8 +245,24 @@
         <div class="pane set-pane">
           <div class="pane-head">
             <h2 class="pane-title">设置</h2>
-            <p class="pane-sub">管理你的演示数据。这些操作仅影响本浏览器的记录。</p>
+            <p class="pane-sub">账户登记只在本浏览器留存脱敏信息（完整手机号校验后即弃）；其余操作也仅影响本浏览器记录。</p>
           </div>
+          <div class="set-sec-title">账户与隐私</div>
+          <div class="set-group">
+            <button class="cell" data-act="phoneReg">
+              <span class="cell-tx"><b>手机号登记</b><i id="cellPhoneSub">未登记 · 点击用手机号守护你的社区身份</i></span>
+              <span class="cell-arrow">&#8250;</span>
+            </button>
+            <button class="cell" data-act="privacyPolicy">
+              <span class="cell-tx"><b>邻里隐私保护说明</b><i>了解我们如何收集、脱敏与保护你的个人信息</i></span>
+              <span class="cell-arrow">&#8250;</span>
+            </button>
+            <button class="cell" data-act="unbindAccount" id="cellUnbind" hidden>
+              <span class="cell-tx"><b>解绑手机号登记</b><i>解除登记但保留积分、任务与信誉等邻里数据</i></span>
+              <span class="cell-arrow">&#8250;</span>
+            </button>
+          </div>
+          <div class="set-sec-title">演示数据与规则</div>
           <div class="set-group">
             <button class="cell" data-act="resetPts">
               <span class="cell-tx"><b>重置积分</b><i>把积分恢复为初始的 100</i></span>
@@ -263,6 +284,10 @@
               <span class="cell-tx"><b>关于邻帮帮</b><i>了解这个社区互助小平台</i></span>
               <span class="cell-arrow">&#8250;</span>
             </button>
+            <button class="cell danger-cell" data-act="wipeLocal">
+              <span class="cell-tx"><b>注销并清空本机数据</b><i>删除本浏览器内的全部记录（含账户登记），且不可恢复</i></span>
+              <span class="cell-arrow">&#8250;</span>
+            </button>
           </div>
           <div class="ver">邻帮帮 v1.0.0 · 网页版</div>
         </div>
@@ -273,8 +298,8 @@
     <footer class="foot">数据保存在当前浏览器（localStorage）· 与微信小程序互不相通</footer>
   </div>
 
-  <script src="assets/store.js?v=20260903j"></script>
-  <script src="assets/ui.js?v=20260903j"></script>
-  <script src="assets/main.js?v=20260903j"></script>
+  <script src="assets/store.js?v=20260903k"></script>
+  <script src="assets/ui.js?v=20260903k"></script>
+  <script src="assets/main.js?v=20260903k"></script>
 </body>
 </html>

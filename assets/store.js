@@ -9,9 +9,10 @@ const AppStore = (function () {
   const CREDIT_KEY = 'linbangbang_credit'; // 信誉：score 0-100 + 变动记录
   const REVIEWS_KEY = 'linbangbang_reviews'; // 交付评分：发布者对完成度/态度的五星整星评价
   const APPEALS_KEY = 'linbangbang_appeals'; // 申诉案件：被差评方可发起申诉，交由大众评审团公开投票
+  const ACCOUNT_KEY = 'linbangbang_account'; // 账户登记：隐私最小化——只保存昵称 + 脱敏号码，绝不保存手机号明文
   const COMMISSION_RATE = 0.2; // 任务佣金抽成比例：20%
   const APPEAL_VOTE_NEED = 3; // 评审团裁决门槛：某一方向票数达到该值
-  const mem = { points: null, tasks: null, heartPool: null, credit: null, reviews: null, appeals: null };
+  const mem = { points: null, tasks: null, heartPool: null, credit: null, reviews: null, appeals: null, account: null };
 
   function read(key, fallback) {
     try {
@@ -71,6 +72,13 @@ const AppStore = (function () {
       write(APPEALS_KEY, appeals);
     }
     mem.appeals = appeals;
+
+    // 账户登记：结构 { nickname, masked, boundAt, consentAt }，无此 key 时为 null（游客）
+    let account = read(ACCOUNT_KEY, null);
+    if (!account || typeof account !== 'object' || !account.masked) {
+      account = null;
+    }
+    mem.account = account;
   }
   init();
 
@@ -365,6 +373,50 @@ const AppStore = (function () {
     return mem.credit.score;
   }
 
+  /* ===================== 账户登记（手机号绑定） =====================
+     隐私保护原则：
+     1. 最小收集：仅昵称（选填）+ 手机号；
+     2. 验证即弃：完整手机号只在登记流程中一次性校验，通过后立即丢弃，
+        本层只接收调用方脱敏后的 masked（如 138****5678），绝无明文落盘；
+     3. 同意留痕：consentAt 记录用户勾选《邻里隐私保护说明》的时间。 */
+  function getAccount() { return mem.account; }
+
+  function registerAccount(info) {
+    const nickname = String(info.nickname == null ? '' : info.nickname).trim().slice(0, 12) || '邻友';
+    const masked = String(info.masked == null ? '' : info.masked).trim();
+    if (!masked) return { ok: false, msg: '登记信息不完整，请重试' };
+    const account = {
+      nickname: nickname,
+      masked: masked,                     // 脱敏号码，如 138****5678
+      boundAt: new Date().toLocaleString(), // 登记时间
+      consentAt: info.consentAt || new Date().toLocaleString() // 同意隐私说明的时间（留痕）
+    };
+    mem.account = account;
+    write(ACCOUNT_KEY, account);
+    return { ok: true, account: account };
+  }
+
+  // 解绑登记：仅移除账户信息，积分 / 任务 / 信誉等邻里数据全部保留
+  function unbindAccount() {
+    mem.account = null;
+    try { localStorage.removeItem(ACCOUNT_KEY); } catch (e) { /* 忽略 */ }
+    return true;
+  }
+
+  // 注销清空：移除本应用在当前浏览器里的全部本地数据（含账户与邻里数据）
+  function wipeLocalData() {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf('linbangbang_') === 0) keys.push(k);
+    }
+    keys.forEach(function (k) {
+      try { localStorage.removeItem(k); } catch (e) { /* 忽略 */ }
+    });
+    init(); // 用默认值重建内存态，后续操作依然可用
+    return true;
+  }
+
   return {
     getPoints,
     changePoints,
@@ -389,6 +441,10 @@ const AppStore = (function () {
     getAppealByTaskId,
     countAppealVotes,
     submitAppeal,
-    voteAppeal
+    voteAppeal,
+    getAccount,
+    registerAccount,
+    unbindAccount,
+    wipeLocalData
   };
 })();

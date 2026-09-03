@@ -423,6 +423,7 @@
   }
 
   function renderMe() {
+    renderAccountUI();
     const tasks = AppStore.getTasks();
     $('mePub').textContent = tasks.length;
     $('meDone').textContent = tasks.filter(function (t) { return t.status === 'done'; }).length;
@@ -430,6 +431,325 @@
     renderRatingSummary();
     renderHonor();
     renderList($('meTaskGrid'), tasks.slice(0, 12), $('meEmpty'), true, true);
+  }
+
+  /* ===================== 账户登记（手机号绑定）与隐私 ===================== */
+  // 隐私设计：
+  // 1. 最小收集——仅昵称（选填）+ 手机号；
+  // 2. 验证即弃——完整手机号只在本机做一次「格式 + 验证码」校验，通过后立即丢弃，
+  //    数据层只接收脱敏后的 masked（如 138****5678），localStorage 中绝无明文；
+  // 3. 脱敏展示——所有界面一律只显示打码号码；
+  // 4. 同意留痕——须勾选《邻里隐私保护说明》方可登记，并记录同意时间；
+  // 5. 用户自控——设置页提供查看 / 解绑 / 注销清空入口。
+  const PHONE_RE = /^1[3-9]\d{9}$/; // 中国大陆手机号
+
+  function maskPhone(p) { return p ? p.slice(0, 3) + '****' + p.slice(7) : ''; }
+  function tailOf(p) { return p ? p.slice(-4) : ''; }
+
+  const PRIVACY_TEXT =
+    '邻帮帮 · 邻里隐私保护说明\n\n' +
+    '我们以「最少收集、本地留存、验证即弃」为原则处理你的个人信息：\n\n' +
+    '一、我们收集什么\n' +
+    '仅收集你主动填写的两项：\n' +
+    '· 昵称（选填）：用于社区内的称呼与头像首字；\n' +
+    '· 手机号码：作为本账户的绑定凭证。\n\n' +
+    '二、手机号怎么保护\n' +
+    '1. 完整号码只在本机做一次性校验（格式 + 短信验证码），通过后立即丢弃；\n' +
+    '2. 本地仅保存「脱敏号码」（例如 138****5678）与登记时间，用于向你展示绑定状态；\n' +
+    '3. 页面中的号码展示均自动打码，不会向任何邻里泄露你的完整号码。\n\n' +
+    '三、数据存在哪里\n' +
+    '本页面全部数据仅保存在你自己的浏览器（localStorage）中：不上传服务器、不与他人共享、也不与微信小程序互通。清除浏览器数据即全部删除。\n\n' +
+    '四、你的权利\n' +
+    '可随时到「设置 → 账户与隐私」：\n' +
+    '· 查看已登记的脱敏信息与同意留痕；\n' +
+    '· 解绑登记（保留积分 / 任务 / 信誉等邻里数据）；\n' +
+    '· 注销并清空本浏览器内邻帮帮的全部数据。\n\n' +
+    '五、演示说明\n' +
+    '当前为演示环境：验证码由系统模拟生成，不会发送真实短信；正式环境将由短信服务商下发验证码，本页承诺同样不落盘完整号码。';
+
+  function openPrivacy() {
+    UI.modal({
+      title: '邻里隐私保护说明',
+      content: PRIVACY_TEXT,
+      showCancel: false,
+      confirmText: '知道了',
+      align: 'left'
+    });
+  }
+
+  // 账户登记弹窗（复用 modal-mask 遮罩体系，独立面板以承载表单）
+  let regMaskEl = null;
+  let regCode = null;        // 内存中的验证码 { phone, code }，绝不下沉到 localStorage
+  let regCodeTimer = null;
+
+  function buildRegisterMask() {
+    const m = document.createElement('div');
+    m.className = 'modal-mask reg-mask';
+    m.innerHTML =
+      '<div class="reg-panel">' +
+        '<button class="modal-x" type="button" aria-label="关闭">&times;</button>' +
+        '<div class="reg-head">' +
+          '<div class="reg-ic">&#128272;</div>' +
+          '<div class="reg-title">手机号登记注册</div>' +
+          '<div class="reg-sub">绑定手机号，为你在社区的每一份善举建立可追溯的邻里身份。</div>' +
+        '</div>' +
+        '<div class="reg-note">&#128274; 隐私承诺：我们仅收集<b>昵称</b>与<b>手机号</b>；完整号码只在本机做一次校验，<b>校验后立即丢弃</b>，本地仅留存脱敏号码。</div>' +
+        '<div class="reg-field">' +
+          '<label class="reg-label" for="regNick">昵称<span class="need">选填 · 默认「邻友+尾号」</span></label>' +
+          '<input class="input" id="regNick" type="text" maxlength="12" placeholder="例如：热心老王">' +
+        '</div>' +
+        '<div class="reg-field">' +
+          '<label class="reg-label" for="regPhone">手机号码<span class="need">用于绑定账户</span></label>' +
+          '<div class="reg-code-row">' +
+            '<input class="input reg-phone-input" id="regPhone" type="tel" maxlength="11" inputmode="numeric" placeholder="请输入 11 位手机号">' +
+            '<button type="button" class="reg-send" id="regSend">获取验证码</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="reg-field">' +
+          '<label class="reg-label" for="regCode">短信验证码<span class="need">6 位数字</span></label>' +
+          '<input class="input" id="regCode" type="tel" maxlength="6" inputmode="numeric" placeholder="请输入 6 位验证码">' +
+        '</div>' +
+        '<div class="reg-agree">' +
+          '<input type="checkbox" id="regAgree">' +
+          '<p class="reg-agree-tx">我已阅读并同意 <button type="button" class="reg-link" data-reg="policy">《邻里隐私保护说明》</button>，并理解平台仅在本地保存脱敏信息。</p>' +
+        '</div>' +
+        '<div class="reg-err" id="regErr"></div>' +
+        '<button type="button" class="reg-submit" id="regSubmit">完成登记</button>' +
+        '<div class="reg-foot">演示环境：验证码为系统模拟生成，不会发送真实短信；完整手机号不会被保存或上传。</div>' +
+      '</div>';
+    document.body.appendChild(m);
+
+    function close() {
+      m.classList.remove('show');
+      resetRegCode();
+    }
+    m.addEventListener('click', function (e) { if (e.target === m) close(); });
+    m.querySelector('.modal-x').addEventListener('click', close);
+    m.querySelector('.reg-link').addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      openPrivacy();
+    });
+    m.querySelector('#regSend').addEventListener('click', sendRegCode);
+    m.querySelector('#regPhone').addEventListener('input', function () {
+      this.value = this.value.replace(/\D/g, '').slice(0, 11);
+    });
+    m.querySelector('#regCode').addEventListener('input', function () {
+      this.value = this.value.replace(/\D/g, '').slice(0, 6);
+    });
+    m.querySelector('#regSubmit').addEventListener('click', submitRegister);
+    // 点协议整行 = 切换勾选（按钮与复选框自身除外）
+    m.querySelector('.reg-agree').addEventListener('click', function (e) {
+      const tag = e.target.tagName;
+      if (tag !== 'BUTTON' && e.target.id !== 'regAgree') {
+        const cb = m.querySelector('#regAgree');
+        cb.checked = !cb.checked;
+      }
+    });
+    return m;
+  }
+
+  // 获取验证码：校验手机号格式 → 生成演示码（仅存内存）→ 30 秒倒计时
+  function sendRegCode() {
+    if (!regMaskEl || regCodeTimer) return;
+    const m = regMaskEl;
+    const phone = m.querySelector('#regPhone').value.trim();
+    const err = m.querySelector('#regErr');
+    if (!PHONE_RE.test(phone)) {
+      err.textContent = '请输入正确的 11 位手机号（1 开头、第二位为 3-9）';
+      return;
+    }
+    err.textContent = '';
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    regCode = { phone: phone, code: code };
+    UI.toast('演示验证码：' + code + '（30 秒内有效）');
+    const btn = m.querySelector('#regSend');
+    let left = 30;
+    btn.disabled = true;
+    btn.textContent = '重新获取(' + left + 's)';
+    regCodeTimer = setInterval(function () {
+      left -= 1;
+      if (left <= 0) {
+        resetRegCode();
+        return;
+      }
+      btn.textContent = '重新获取(' + left + 's)';
+    }, 1000);
+  }
+
+  function resetRegCode() {
+    if (regCodeTimer) { clearInterval(regCodeTimer); regCodeTimer = null; }
+    regCode = null;
+    if (regMaskEl) {
+      const btn = regMaskEl.querySelector('#regSend');
+      if (btn) { btn.disabled = false; btn.textContent = '获取验证码'; }
+    }
+  }
+
+  // 提交登记：全部校验通过后，完整号码就此“功成身退”，仅把脱敏串交给数据层留存
+  function submitRegister() {
+    if (state.acting || !regMaskEl) return;
+    const m = regMaskEl;
+    const err = m.querySelector('#regErr');
+    const phone = m.querySelector('#regPhone').value.trim();
+    const code = m.querySelector('#regCode').value.trim();
+    const nick = m.querySelector('#regNick').value.trim();
+    const agree = m.querySelector('#regAgree').checked;
+    if (!PHONE_RE.test(phone)) { err.textContent = '手机号格式不正确，请检查后重试'; return; }
+    if (!regCode || regCode.phone !== phone) { err.textContent = '请先获取该手机号的验证码'; return; }
+    if (code !== regCode.code) { err.textContent = '验证码不正确或已失效，请重新获取'; return; }
+    if (!agree) { err.textContent = '请先阅读并勾选同意《邻里隐私保护说明》'; return; }
+
+    state.acting = true;
+    const btn = m.querySelector('#regSubmit');
+    if (btn) btn.disabled = true;
+    err.textContent = '';
+    setTimeout(function () {
+      const r = AppStore.registerAccount({
+        nickname: nick || ('邻友' + tailOf(phone)),
+        masked: maskPhone(phone)
+      });
+      state.acting = false;
+      if (btn) btn.disabled = false;
+      if (!r.ok) { err.textContent = r.msg; return; }
+      m.classList.remove('show');
+      resetRegCode();
+      renderAccountUI();
+      UI.toast('登记成功，号码已脱敏保护', 'success');
+    }, 350);
+  }
+
+  function showRegisterMask() {
+    if (AppStore.getAccount()) { openAccountInfo(); return; }
+    if (!regMaskEl) regMaskEl = buildRegisterMask();
+    const m = regMaskEl;
+    m.querySelector('#regNick').value = '';
+    m.querySelector('#regPhone').value = '';
+    m.querySelector('#regCode').value = '';
+    m.querySelector('#regAgree').checked = false;
+    m.querySelector('#regErr').textContent = '';
+    resetRegCode();
+    m.classList.add('show');
+    setTimeout(function () {
+      const n = m.querySelector('#regPhone');
+      if (n) n.focus();
+    }, 80);
+  }
+
+  // 顶栏账户入口与「我的」页登记引导的统一分发
+  function onAcct(what) {
+    if (AppStore.getAccount()) openAccountInfo();
+    else showRegisterMask();
+  }
+
+  // 登记后账户信息（脱敏展示 + 同意留痕）
+  function openAccountInfo() {
+    const acct = AppStore.getAccount();
+    if (!acct) { showRegisterMask(); return; }
+    UI.choice({
+      title: '账户与隐私',
+      html:
+        '<div class="acc-card">' +
+          '<div class="acc-row"><span class="k">昵称</span><span class="v">' + escHtml(acct.nickname) + '</span></div>' +
+          '<div class="acc-row"><span class="k">登记手机号</span><span class="v acc-masked">' + escHtml(acct.masked) + '</span></div>' +
+          '<div class="acc-row"><span class="k">登记时间</span><span class="v">' + escHtml(acct.boundAt) + '</span></div>' +
+          '<div class="acc-row"><span class="k">同意隐私说明</span><span class="v">' + escHtml(acct.consentAt || acct.boundAt) + '</span></div>' +
+          '<div class="acc-sec">你的完整手机号从未被保存：登记时仅做一次性校验即丢弃，本机只留存以上脱敏信息，用于展示绑定状态。</div>' +
+        '</div>',
+      buttons: [
+        { text: '查看隐私说明', value: 'policy' },
+        { text: '解绑登记', cls: 'danger', value: 'unbind' },
+        { text: '关闭', value: false }
+      ],
+      colButtons: true
+    }).then(function (act) {
+      if (act === 'policy') openPrivacy();
+      else if (act === 'unbind') doUnbindAccount();
+    });
+  }
+
+  async function doUnbindAccount() {
+    if (state.acting) return;
+    const ok = await UI.confirm({
+      title: '解绑手机号登记',
+      content: '解除手机号与账户的绑定？你的积分、任务与信誉等邻里数据会全部保留，只是不再展示登记身份。',
+      confirmText: '解绑'
+    });
+    if (!ok) return;
+    state.acting = true;
+    UI.showLoading('正在解绑...');
+    setTimeout(function () {
+      AppStore.unbindAccount();
+      UI.hideLoading();
+      state.acting = false;
+      renderAccountUI();
+      UI.toast('已解绑登记', 'success');
+    }, 300);
+  }
+
+  async function doWipeLocal() {
+    if (state.acting) return;
+    const ok = await UI.confirm({
+      title: '注销并清空本机数据',
+      content: '将删除本浏览器内邻帮帮的全部记录：账户登记、积分、任务、信誉、历史评分与申诉案件，且不可恢复。确定继续吗？',
+      confirmText: '全部清空'
+    });
+    if (!ok) return;
+    const sure = await UI.confirm({
+      title: '最后确认',
+      content: '此操作无法撤销。真的要注销并清空一切吗？',
+      confirmText: '确认注销',
+      cancelText: '再想想'
+    });
+    if (!sure) return;
+    state.acting = true;
+    UI.showLoading('正在注销并清空...');
+    setTimeout(function () {
+      AppStore.wipeLocalData();
+      UI.hideLoading();
+      state.acting = false;
+      syncPoints();
+      renderAccountUI();
+      renderBoard();
+      renderMe();
+      renderJury();
+      UI.toast('已注销并清空本机数据', 'success');
+      nav('home');
+    }, 400);
+  }
+
+  // 把登记状态同步到顶栏、我的页与设置页（三处入口共用一份状态）
+  function renderAccountUI() {
+    const acct = AppStore.getAccount();
+    const apV = $('apTopValue');
+    if (apV) {
+      apV.textContent = acct ? acct.masked : '未登记';
+      apV.classList.toggle('guest', !acct);
+    }
+    const pfName = $('pfName');
+    const ava = $('meAvatar');
+    if (acct) {
+      if (pfName) pfName.textContent = acct.nickname;
+      if (ava) ava.textContent = (acct.nickname || '邻').slice(0, 1);
+    } else {
+      if (pfName) pfName.textContent = '邻帮帮用户';
+      if (ava) ava.textContent = '邻';
+    }
+    const pfAcc = $('pfAccount');
+    if (pfAcc) {
+      pfAcc.innerHTML = acct
+        ? '<span class="acc-badge">&#128274; ' + escHtml(acct.masked) + '<i>· 已登记</i></span>' +
+          '<span class="acc-bound">' + escHtml(acct.boundAt) + '</span>'
+        : '<button type="button" class="acc-reg-btn" data-acct="reg"><i>&#128272;</i> 登记手机号 · 建立邻里身份</button>';
+    }
+    const sub = $('cellPhoneSub');
+    if (sub) {
+      sub.textContent = acct
+        ? '已登记 ' + acct.masked + ' · 点击查看账户信息'
+        : '未登记 · 点击用手机号守护你的社区身份';
+    }
+    const unbind = $('cellUnbind');
+    if (unbind) unbind.hidden = !acct;
   }
 
   /* ===================== 五级志愿荣誉机制 ===================== */
@@ -908,7 +1228,16 @@
   async function runSetting(act) {
     if (state.acting) return;
 
-    if (act === 'resetPts') {
+    if (act === 'phoneReg') {
+      showRegisterMask();
+    } else if (act === 'privacyPolicy') {
+      openPrivacy();
+    } else if (act === 'unbindAccount') {
+      if (!AppStore.getAccount()) { UI.toast('当前尚未登记手机号'); return; }
+      doUnbindAccount();
+    } else if (act === 'wipeLocal') {
+      doWipeLocal();
+    } else if (act === 'resetPts') {
       const ok = await UI.confirm({
         title: '重置积分',
         content: '将积分重置为 100，确定吗？',
@@ -1030,6 +1359,9 @@
       const act = e.target.closest ? e.target.closest('[data-act]') : null;
       if (act) { runSetting(act.dataset.act); return; }
 
+      const acct = e.target.closest ? e.target.closest('[data-acct]') : null;
+      if (acct) { onAcct(acct.dataset.acct); return; }
+
       const ab = e.target.closest ? e.target.closest('.accept-btn') : null;
       if (ab) { acceptTask(ab.dataset.id); return; }
 
@@ -1098,5 +1430,6 @@
     resizeTimer = setTimeout(UI.fillWaterfall, 250);
   });
   bindEvents();
+  renderAccountUI(); // 启动即同步顶栏 / 我的 / 设置中的登记状态
   nav('home');
 })();
