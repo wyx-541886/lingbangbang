@@ -227,6 +227,32 @@
   box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.7);
 }
 
+/* 「接取任务 + 大众评审团」编为一组：评审团紧随接取任务右侧，并缩小为次要入口 */
+.hero-actions-pair {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: nowrap;
+}
+
+/* 次要入口的紧凑按钮：整体等比缩小，不与主操作抢视觉 */
+.big-btn.compact {
+  min-width: 0;
+  gap: 10px;
+  padding: 11px 16px;
+  border-radius: 16px;
+}
+
+.big-btn.compact .big-ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  font-size: 18px;
+}
+
+.big-btn.compact .big-txt b { font-size: 15px; letter-spacing: 0.5px; }
+.big-btn.compact .big-txt i { font-size: 11.5px; margin-top: 2px; }
+
 .big-txt { display: flex; flex-direction: column; }
 
 .big-txt b {
@@ -731,6 +757,7 @@
   .hero { padding: 26px 20px; }
   .hero-title { font-size: 26px; }
   .big-btn { min-width: 0; width: 100%; }
+  .hero-actions-pair { width: 100%; flex-wrap: wrap; }
   .task-grid, .task-grid.narrow { grid-template-columns: 1fr; }
   .stats { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
   .stat { padding: 18px 8px; }
@@ -2028,4 +2055,104 @@
 .modal-btns.col .modal-btn + .modal-btn {
   border-left: none;
   border-top: 0.5px solid rgba(190, 158, 108, 0.32);
+}
+
+/* ===================== 积分赠送 ===================== */
+/* 「我的」页赠送入口卡 */
+.gift-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: linear-gradient(120deg, rgba(255, 244, 214, 0.72), rgba(255, 255, 255, 0.72));
+  border: 1px solid rgba(196, 136, 42, 0.3);
+}
+.gift-entry-tx { flex: 1; min-width: 0; }
+.gift-entry-tx b {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--accent-deep);
+}
+.gift-entry-tx i {
+  display: block;
+  margin-top: 4px;
+  font-style: normal;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-faint);
+}
+.gift-entry-btn {
+  flex-shrink: 0;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--accent-deep);
+  background: var(--gold-grad);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: var(--shadow-gold), inset 0 2px 0 rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.gift-entry-btn:hover { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(186, 133, 44, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.7); }
+.gift-entry-btn:active { transform: scale(0.97); }
+
+/* 赠送弹窗：余额条 / 往来记录 */
+.gift-balance {
+  margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 13px;
+  color: var(--text-sub);
+  background: linear-gradient(90deg, rgba(255, 240, 200, 0.5), rgba(236, 196, 112, 0.16));
+  border: 1px dashed rgba(196, 136, 42, 0.45);
+}
+.gift-balance b { color: var(--accent-deep); font-size: 15px; margin-left: 2px; }
+.gift-bal-note { width: 100%; font-size: 11.5px; color: var(--text-faint); }
+
+.gift-log { margin-top: 16px; }
+.gift-log-t { font-size: 12px; font-weight: 700; color: var(--text-faint); margin-bottom: 6px; }
+.gift-log-list { list-style: none; margin: 0; padding: 0; }
+.gift-log-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  font-size: 12.5px;
+  border-bottom: 0.5px dashed rgba(190, 158, 108, 0.25);
+}
+.gift-log-list li:last-child { border-bottom: none; }
+.gift-log-list i {
+  font-style: normal;
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.gift-log-list li.out i { color: #B35C2E; background: rgba(235, 160, 90, 0.16); }
+.gift-log-list li.in i { color: #4E7A2F; background: rgba(120, 150, 100, 0.14); }
+.gift-log-list b {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gift-log-list li.out span { color: #C4553F; font-weight: 800; }
+.gift-log-list li.in span { color: #4E7A2F; font-weight: 800; }
+.gift-log-list u { font-size: 11px; color: var(--text-faint); text-decoration: none; white-space: nowrap; }
+
+@media (max-width: 700px) {
+  .gift-entry { flex-wrap: wrap; }
+  .gift-entry-btn { width: 100%; }
 }

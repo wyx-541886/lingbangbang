@@ -783,7 +783,7 @@
       UI.hideLoading();
       state.acting = false;
       renderAccountUI();
-      UI.toast('已退出登录');
+      UI.toast('已退出登录 · 页面展示游客体验积分（账号积分仍保留，重新登录即可取回）');
     }, 300);
   }
 
@@ -850,6 +850,18 @@
     }
     const logoutCell = $('cellLogout');
     if (logoutCell) logoutCell.hidden = !user;
+
+    // 积分赠送入口：按登录态切换文案，未登录时点击会引导登录，避免“点了没反应”的困惑
+    const giftGo = $('btnGift');
+    if (giftGo) giftGo.textContent = user ? '去赠送' : '登录后赠送';
+    const giftHint = $('giftHint');
+    if (giftHint) {
+      giftHint.textContent = user
+        ? '把你的积分让渡给另一位邻里——输入对方用户名，并用你的登录密码做双重确认，积分即刻到达对方账号。'
+        : '需先登录才能赠送：登录后即可输入对方用户名与赠送数量，并用登录密码确认后转出。';
+    }
+
+    syncPoints(); // 登录 / 注册 / 退出后，立即把积分展示切到对应的账号钱包
   }
 
   /* ===================== 五级志愿荣誉机制 ===================== */
@@ -1324,6 +1336,160 @@
     renderMe();
   }
 
+  /* ===================== 积分赠送（我的 → 赠送积分给邻里） =====================
+     让渡路径：登录账号（发送方钱包）→ 目标账号（接收方钱包）。
+     为防误操作 / 冒领，除填写对方用户名外，还必须输入“本人登录密码”做二次确认；
+     密码走与登录相同的加盐哈希校验，失败会计入同一套锁定退避，防暴力试密码。 */
+  let giftMaskEl = null;
+
+  function buildGiftMask() {
+    const m = document.createElement('div');
+    m.className = 'modal-mask reg-mask';
+    m.innerHTML =
+      '<div class="reg-panel">' +
+        '<button class="modal-x" type="button" aria-label="关闭">&times;</button>' +
+        '<div class="reg-head">' +
+          '<div class="reg-ic">&#127873;</div>' +
+          '<div class="reg-title">积分赠送</div>' +
+          '<div class="reg-sub">把你的积分让渡给另一位邻里。需确认对方用户名，并输入<b>你的登录密码</b>做双重确认，积分才会从你的账户转出。</div>' +
+        '</div>' +
+        '<div class="gift-balance" id="giftBalance"></div>' +
+        '<div class="gift-log" id="giftLog" hidden></div>' +
+        '<div class="reg-field">' +
+          '<label class="reg-label" for="giftTo">对方用户名<span class="need">必填</span></label>' +
+          '<input class="input" id="giftTo" type="text" maxlength="16" autocomplete="off" placeholder="例如：wangxiaoming" spellcheck="false">' +
+        '</div>' +
+        '<div class="reg-field">' +
+          '<label class="reg-label" for="giftAmt">赠送积分<span class="need">必填</span></label>' +
+          '<input class="input" id="giftAmt" type="number" min="1" step="1" inputmode="numeric" placeholder="输入要赠送的整数积分">' +
+        '</div>' +
+        '<div class="reg-field">' +
+          '<label class="reg-label" for="giftPwd">我的登录密码<span class="need">必填</span></label>' +
+          '<input class="input" id="giftPwd" type="password" maxlength="64" autocomplete="current-password" placeholder="复核本人身份后才会送出">' +
+        '</div>' +
+        '<div class="reg-note">&#128274; 密码仅在本机做加盐哈希校验，用于二次确认：校验通过后从你的积分中扣除，并即时转入对方账号；全程不落盘、不展示密码原文。</div>' +
+        '<div class="reg-err" id="giftErr"></div>' +
+        '<button type="button" class="reg-submit" id="giftSubmit">确认赠送</button>' +
+        '<div class="reg-foot">积分一经赠出即到达对方账号，无法撤回，请仔细核对用户名。</div>' +
+      '</div>';
+    document.body.appendChild(m);
+
+    m.addEventListener('click', function (e) { if (e.target === m) closeGiftMask(); });
+    m.querySelector('.modal-x').addEventListener('click', closeGiftMask);
+    m.querySelector('#giftTo').addEventListener('input', function () {
+      this.value = this.value.replace(/[^A-Za-z0-9_]/g, '').slice(0, 16);
+    });
+    m.querySelector('#giftSubmit').addEventListener('click', submitGift);
+    m.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && e.target && e.target.tagName !== 'BUTTON') {
+        e.preventDefault();
+        submitGift();
+      }
+    });
+    return m;
+  }
+
+  function closeGiftMask() {
+    if (giftMaskEl) giftMaskEl.classList.remove('show');
+  }
+
+  function openGiftMask() {
+    const user = AppStore.getCurrentUser();
+    if (!user) { UI.toast('请先登录，才能把积分赠送给他人'); showAuthMask('login'); return; }
+    if (!giftMaskEl) giftMaskEl = buildGiftMask();
+    const m = giftMaskEl;
+    m.querySelector('#giftTo').value = '';
+    m.querySelector('#giftAmt').value = '';
+    m.querySelector('#giftPwd').value = '';
+    const err = m.querySelector('#giftErr');
+    if (err) err.textContent = '';
+    m.classList.add('show'); // 先显示弹窗：后续填充若出异常也不会变成「点了没反应」
+
+    try {
+      const bal = AppStore.getPoints();
+      const balance = m.querySelector('#giftBalance');
+      if (balance) {
+        balance.innerHTML = bal > 0
+          ? '<span>我的当前余额</span><b>' + bal + ' 积分</b>' +
+            '<span class="gift-bal-note">本次可赠送范围：1 ~ ' + bal + ' 积分</span>'
+          : '<span>我的当前余额</span><b>0 积分</b>' +
+            '<span class="gift-bal-note">余额为 0，暂时无法赠送；先去完成任务赚取积分吧。</span>';
+      }
+      const logEl = m.querySelector('#giftLog');
+      if (logEl) {
+        // 兼容旧版数据层：取不到流水就隐藏该区块，不影响赠送本身
+        const rows = typeof AppStore.getGiftLog === 'function' ? AppStore.getGiftLog(user.username) : [];
+        if (rows.length) {
+          logEl.innerHTML =
+            '<div class="gift-log-t">近期赠送往来</div>' +
+            '<ul class="gift-log-list">' + rows.slice(0, 5).map(function (g) {
+              const out = g.from === user.username;
+              return '<li class="' + (out ? 'out' : 'in') + '">' +
+                '<i>' + (out ? '赠出' : '收到') + '</i>' +
+                '<b>' + (out ? '@' + escHtml(g.to) : '@' + escHtml(g.from)) + '</b>' +
+                '<span>' + (out ? '-' : '+') + g.amount + '</span>' +
+                '<u>' + escHtml(g.time) + '</u>' +
+              '</li>';
+            }).join('') + '</ul>';
+          logEl.hidden = false;
+        } else {
+          logEl.hidden = true;
+        }
+      }
+    } catch (e) {
+      const logEl = m.querySelector('#giftLog');
+      if (logEl) logEl.hidden = true;
+    }
+    setTimeout(function () {
+      const t = m.querySelector('#giftTo');
+      if (t) t.focus();
+    }, 80);
+  }
+
+  // 提交赠送：先本地表单校验 → 异步哈希密码 → 数据层复核并转出（不可撤回）
+  async function submitGift() {
+    if (state.acting || !giftMaskEl) return;
+    const user = AppStore.getCurrentUser();
+    if (!user) { closeGiftMask(); showAuthMask('login'); return; }
+    const m = giftMaskEl;
+    const err = m.querySelector('#giftErr');
+    const to = m.querySelector('#giftTo').value.trim();
+    const amtRaw = m.querySelector('#giftAmt').value.trim();
+    const pwd = m.querySelector('#giftPwd').value;
+    const amt = Math.floor(Number(amtRaw));
+
+    if (!to) { err.textContent = '请输入对方用户名'; return; }
+    if (!USER_RE.test(to)) { err.textContent = '对方用户名格式不正确（字母开头，3~16 位，可含数字 / 下划线）'; return; }
+    if (!amtRaw || !isFinite(amt) || amt <= 0) { err.textContent = '请输入大于 0 的整数积分'; return; }
+    if (amt > AppStore.getPoints()) { err.textContent = '积分不足，无法赠送这么多'; return; }
+    if (!pwd) { err.textContent = '请输入你的登录密码'; return; }
+
+    err.textContent = '';
+    state.acting = true;
+    const btn = m.querySelector('#giftSubmit');
+    if (btn) btn.disabled = true;
+    try {
+      const salt = AppStore.getSalt(user.username);
+      const pwdHash = salt ? await hashPassword(pwd, salt) : '';
+      const r = AppStore.giftPoints({ to: to, amount: amt, pwdHash: pwdHash });
+      if (!r.ok) {
+        err.textContent = r.msg;
+        if (r.locked) {
+          const pw = m.querySelector('#giftPwd');
+          if (pw) pw.value = '';
+        }
+        return;
+      }
+      m.classList.remove('show');
+      syncPoints();
+      renderMe();
+      UI.toast('已向 @' + r.to + ' 赠送 ' + r.amount + ' 积分 · 当前余额 ' + r.points, 'success');
+    } finally {
+      state.acting = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
   /* ===================== 设置 ===================== */
   async function runSetting(act) {
     if (state.acting) return;
@@ -1521,6 +1687,14 @@
     // 志愿荣誉：查看绑定记录
     const hdBtn = $('btnHonorDetail');
     if (hdBtn) hdBtn.addEventListener('click', openHonorDetail);
+
+    // 积分赠送：入口位于「我的」页（事件委托，按钮即便被重建也能响应）
+    document.addEventListener('click', function (e) {
+      const t = e.target && e.target.closest ? e.target.closest('#btnGift') : null;
+      if (!t) return;
+      e.preventDefault();
+      openGiftMask();
+    });
   }
 
   /* ===================== 启动 ===================== */

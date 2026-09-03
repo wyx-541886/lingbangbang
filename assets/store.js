@@ -11,6 +11,7 @@ const AppStore = (function () {
   const APPEALS_KEY = 'linbangbang_appeals'; // 申诉案件：被差评方可发起申诉，交由大众评审团公开投票
   const USERS_KEY = 'linbangbang_users'; // 本地账号表：用户名 + 随机盐 + 加盐哈希（绝不存密码明文）
   const SESSION_KEY = 'linbangbang_session'; // 当前登录会话：{ username, loggedInAt }
+  const GIFT_KEY = 'linbangbang_gift_log'; // 积分赠送流水：邻里间积分让渡记录
   const GUARD_KEY = 'linbangbang_auth_guard'; // 防刷守卫：近窗口内的注册时间戳
   const GUARD_REG_WINDOW_MS = 10 * 60 * 1000; // 防刷：注册时间窗 = 10 分钟
   const GUARD_REG_LIMIT = 3; // 时间窗内本机最多可注册的账号数
@@ -19,7 +20,7 @@ const AppStore = (function () {
   const LOCK_STEPS = [30000, 60000, 120000, 300000, 600000]; // 锁定逐级递增退避：30s / 1m / 2m / 5m / 10m
   const COMMISSION_RATE = 0.2; // 任务佣金抽成比例：20%
   const APPEAL_VOTE_NEED = 3; // 评审团裁决门槛：某一方向票数达到该值
-  const mem = { points: null, tasks: null, heartPool: null, credit: null, reviews: null, appeals: null, users: null, guard: null, session: null };
+  const mem = { points: null, tasks: null, heartPool: null, credit: null, reviews: null, appeals: null, gifts: null, users: null, guard: null, session: null };
 
   function read(key, fallback) {
     try {
@@ -68,6 +69,7 @@ const AppStore = (function () {
         nickname: toStr(raw.nickname, '邻友', 12),
         createdAt: toNum(raw.createdAt, now, 0, now + 86400000),
         lastLoginAt: toNum(raw.lastLoginAt, 0, 0, now + 86400000),
+        points: toNum(raw.points, 100, 0, 1000000), // 账号积分钱包：赠送让渡时接收方据此入账
         fail: toNum(raw.fail, 0, 0, 100),
         lockCount: toNum(raw.lockCount, 0, 0, 10),
         lockedUntil: toNum(raw.lockedUntil, 0, 0, now + 7 * 86400000)
@@ -190,6 +192,21 @@ const AppStore = (function () {
     return out;
   }
 
+  // 赠送流水数据卫生：双向用户名必填，数量类型化 + 钳制，防止脏条目撑爆展示
+  function normalizeGifts(list) {
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    for (let i = 0; i < list.length && out.length < 60; i += 1) {
+      const raw = list[i];
+      if (!raw || typeof raw !== 'object') continue;
+      const from = toStr(raw.from, '', 20);
+      const to = toStr(raw.to, '', 20);
+      if (!from || !to) continue;
+      out.push({ from: from, to: to, amount: toNum(raw.amount, 0, 1, 1000000), time: toStr(raw.time, '', 60) });
+    }
+    return out;
+  }
+
   function normalizeCredit(credit) {
     if (!credit || typeof credit !== 'object') return { score: 100, history: [] };
     const score = Number(credit.score);
@@ -260,6 +277,14 @@ const AppStore = (function () {
     }
     mem.appeals = normalizeAppeals(appeals);
 
+    // 积分赠送流水：无数据时初始化为空数组
+    let gifts = read(GIFT_KEY, null);
+    if (!Array.isArray(gifts)) {
+      gifts = [];
+      write(GIFT_KEY, gifts);
+    }
+    mem.gifts = normalizeGifts(gifts);
+
     // 账号密码体系：旧版「手机号登记」数据已被放弃（改用账号密码登录），读到即清除
     try {
       if (localStorage.getItem('linbangbang_account') !== null) localStorage.removeItem('linbangbang_account');
@@ -289,11 +314,26 @@ const AppStore = (function () {
   }
   init();
 
-  function getPoints() { return mem.points; }
+  /* 积分钱包：账号密码体系落地后，积分跟随「当前登录账号」记账，
+     这样才能把积分真正的让渡到对方账号上（赠送闭环）。
+     已登录 → 该账号的 points；未登录（游客）→ 全局体验积分（本机共享一条）。 */
+  function getPoints() {
+    const u = getCurrentUser();
+    return u ? (Number(u.points) || 0) : mem.points;
+  }
 
-  // 修改积分：余额不足返回 null，否则返回新余额
+  // 修改当前钱包积分：余额不足返回 null，否则返回新余额
   function changePoints(delta) {
-    const next = mem.points + delta;
+    const d = Number(delta) || 0;
+    const u = getCurrentUser();
+    if (u) {
+      const next = (Number(u.points) || 0) + d;
+      if (next < 0) return null;
+      u.points = next;
+      saveUsers();
+      return next;
+    }
+    const next = mem.points + d;
     if (next < 0) return null;
     mem.points = next;
     write(POINTS_KEY, next);
@@ -307,7 +347,14 @@ const AppStore = (function () {
     write(TASKS_KEY, list);
   }
 
+  // 重置当前钱包为 100（已登录 → 该账号积分；游客 → 全局体验积分）
   function resetPoints() {
+    const u = getCurrentUser();
+    if (u) {
+      u.points = 100;
+      saveUsers();
+      return 100;
+    }
     mem.points = 100;
     write(POINTS_KEY, 100);
     return mem.points;
@@ -346,18 +393,18 @@ const AppStore = (function () {
     const id = String(taskId == null ? '' : taskId);
     const amount = Math.floor(Number(addAmount) || 0);
     if (amount <= 0) return { ok: false, msg: '请填写大于 0 的整数积分' };
-    if (amount > mem.points) return { ok: false, msg: '积分不足，无法追加悬赏' };
+    if (amount > getPoints()) return { ok: false, msg: '积分不足，无法追加悬赏' };
     const t = mem.tasks.find(function (x) { return String(x.id) === id; });
     if (!t) return { ok: false, msg: '任务不存在或已被移除' };
     if (t.status !== 'pending') return { ok: false, msg: '任务已被接取或已完成，无法追加悬赏' };
-    mem.points -= amount;
-    write(POINTS_KEY, mem.points);
+    const after = changePoints(-amount);
+    if (after === null) return { ok: false, msg: '积分不足，无法追加悬赏' };
     t.reward = (Number(t.reward) || 0) + amount;
     if (!Array.isArray(t.rewardLog)) t.rewardLog = [];
     t.rewardLog.push({ add: amount, total: t.reward, time: new Date().toLocaleString() });
     if (t.rewardLog.length > 20) t.rewardLog.length = 20;
     write(TASKS_KEY, mem.tasks);
-    return { ok: true, reward: t.reward, points: mem.points };
+    return { ok: true, reward: t.reward, points: after };
   }
 
   /* ===================== 信誉分 ===================== */
@@ -659,11 +706,15 @@ const AppStore = (function () {
       nickname: nickname,
       createdAt: now,
       lastLoginAt: now,
+      points: mem.points, // 账号钱包 = 注册前的游客体验积分（注册即把体验分并入自己的邻里身份）
       fail: 0,
       lockCount: 0,
       lockedUntil: 0
     };
     mem.users.push(user);
+    // 游客体验钱包回到初始 100，供本机后续访客 / 其他邻里体验使用
+    mem.points = 100;
+    write(POINTS_KEY, mem.points);
     mem.guard.regs.push(now);
     write(GUARD_KEY, mem.guard);
     saveUsers();
@@ -671,14 +722,9 @@ const AppStore = (function () {
     return { ok: true, user: getUserPublic(username) };
   }
 
-  // 登录：{ username, pwdHash }；对「用户名不存在」与「密码错误」统一报错，不泄露账号是否存在
-  function login(info) {
-    const username = String(info.username == null ? '' : info.username).trim();
-    const pwdHash = String(info.pwdHash == null ? '' : info.pwdHash).slice(0, 128);
-    if (!username || !pwdHash) return { ok: false, msg: '请输入用户名和密码' };
-    const u = findUser(username);
-    if (!u) return { ok: false, msg: '用户名或密码不正确' };
-
+  // 密码验身核心（登录 / 赠送复核共用）：比对加盐哈希；失败即计数并逐级递增锁定。
+  // 成功会清零失败计数与锁定状态；调用方需在成功后自行 saveUsers() 落盘
+  function checkPwd(u, pwdHash) {
     const now = Date.now();
     if (u.lockedUntil > now) {
       const left = Math.ceil((u.lockedUntil - now) / 1000);
@@ -695,15 +741,69 @@ const AppStore = (function () {
         return { ok: false, msg: '连续输错次数过多，账号已临时锁定 ' + left + ' 秒', locked: left };
       }
       saveUsers();
-      return { ok: false, msg: '用户名或密码不正确（还可尝试 ' + (LOGIN_MAX_FAIL - u.fail) + ' 次）' };
+      return { ok: false, msg: '密码不正确（还可尝试 ' + (LOGIN_MAX_FAIL - u.fail) + ' 次）' };
     }
     u.fail = 0;
     u.lockCount = 0;
     u.lockedUntil = 0;
-    u.lastLoginAt = now;
+    return { ok: true };
+  }
+
+  // 登录：{ username, pwdHash }；对「用户名不存在」与「密码错误」统一报错，不泄露账号是否存在
+  function login(info) {
+    const username = String(info.username == null ? '' : info.username).trim();
+    const pwdHash = String(info.pwdHash == null ? '' : info.pwdHash).slice(0, 128);
+    if (!username || !pwdHash) return { ok: false, msg: '请输入用户名和密码' };
+    const u = findUser(username);
+    if (!u) return { ok: false, msg: '用户名或密码不正确' };
+    const c = checkPwd(u, pwdHash);
+    if (!c.ok) return { ok: false, msg: c.msg, locked: c.locked };
+    u.lastLoginAt = Date.now();
     saveUsers();
     setSession(username);
     return { ok: true, user: getUserPublic(username) };
+  }
+
+  /* 积分赠送：把当前账号的部分积分让渡给另一位邻里。
+     三道关卡全部在数据层强制，改页面按钮绕不过：
+     ① 接收者必须真实存在且非本人（找不到的用户不会凭空造出积分）；
+     ② 赠送量须为 >0 整数且不超过当前余额；
+     ③ 复核本人登录密码——与登录共用同一套失败计数与逐级锁定，防暴力试密码。
+     成功后双方余额即时落盘，并写入一条赠送流水（供收送双方查看）。 */
+  function giftPoints(info) {
+    const from = getCurrentUser();
+    if (!from) return { ok: false, msg: '请先登录后再赠送积分' };
+    const toName = String(info.to == null ? '' : info.to).trim().slice(0, 20);
+    const pwdHash = String(info.pwdHash == null ? '' : info.pwdHash).slice(0, 128);
+    const amount = Math.floor(Number(info.amount));
+    if (!toName || !pwdHash) return { ok: false, msg: '请填写对方用户名、赠送数量与登录密码' };
+    if (toName === from.username) return { ok: false, msg: '积分不能赠送给自己' };
+    const to = findUser(toName);
+    if (!to) return { ok: false, msg: '没有找到用户 @' + toName + '，请核对用户名后重试' };
+    if (!isFinite(amount) || amount <= 0) return { ok: false, msg: '赠送数量须为大于 0 的整数' };
+    if (amount > (Number(from.points) || 0)) return { ok: false, msg: '积分不足，无法赠送' };
+
+    const c = checkPwd(from, pwdHash);
+    if (!c.ok) return { ok: false, msg: c.msg, locked: c.locked };
+
+    from.points = (Number(from.points) || 0) - amount;
+    to.points = (Number(to.points) || 0) + amount;
+    saveUsers();
+    mem.gifts.unshift({ from: from.username, to: to.username, amount: amount, time: new Date().toLocaleString() });
+    if (mem.gifts.length > 60) mem.gifts.length = 60;
+    write(GIFT_KEY, mem.gifts);
+    return { ok: true, amount: amount, to: to.username, points: from.points };
+  }
+
+  // 某人相关的赠送流水（送出 + 收到，按时间倒序），供 UI 展示往来记录
+  function getGiftLog(username) {
+    const name = String(username == null ? '' : username);
+    const rows = [];
+    for (let i = 0; i < mem.gifts.length && rows.length < 10; i += 1) {
+      const g = mem.gifts[i];
+      if (g.from === name || g.to === name) rows.push(g);
+    }
+    return rows;
   }
 
   // 退出登录：仅清除会话，账号与邻里数据全部保留
@@ -759,6 +859,8 @@ const AppStore = (function () {
     register,
     login,
     logout,
+    giftPoints,
+    getGiftLog,
     wipeLocalData
   };
 })();

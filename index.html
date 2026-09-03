@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>邻帮帮 · 邻里互助任务平台</title>
-<link rel="stylesheet" href="assets/base.css?v=20260903m">
-<link rel="stylesheet" href="assets/app.css?v=20260903m">
+<link rel="stylesheet" href="assets/base.css?v=20260903j">
+<link rel="stylesheet" href="assets/app.css?v=20260903j">
 </head>
 <body>
 
@@ -56,14 +56,16 @@
                 <span class="big-ic">发</span>
                 <span class="big-txt"><b>发布任务</b><i>悬赏积分，等邻里接单</i></span>
               </button>
-              <button class="big-btn alt" id="btnGrab">
-                <span class="big-ic">接</span>
-                <span class="big-txt"><b>接取任务</b><i>帮上忙，完成领积分</i></span>
-              </button>
-              <button class="big-btn jury" id="btnJury" data-nav="jury">
-                <span class="big-ic">审</span>
-                <span class="big-txt"><b>大众评审团</b><i>公开投票，为不公评理</i></span>
-              </button>
+              <div class="hero-actions-pair">
+                <button class="big-btn alt" id="btnGrab">
+                  <span class="big-ic">接</span>
+                  <span class="big-txt"><b>接取任务</b><i>帮上忙，完成领积分</i></span>
+                </button>
+                <button class="big-btn jury compact" id="btnJury" data-nav="jury">
+                  <span class="big-ic">审</span>
+                  <span class="big-txt"><b>大众评审团</b><i>公开投票，为不公评理</i></span>
+                </button>
+              </div>
             </div>
           </div>
           <div class="hero-side">
@@ -161,6 +163,15 @@
               <span class="st-label">已完成交付</span>
               <span class="st-value" id="meDone">0</span>
             </div>
+          </div>
+
+          <!-- 积分赠送：把积分让渡给邻里（对方用户名 + 本人登录密码，双重确认） -->
+          <div class="gift-entry">
+            <div class="gift-entry-tx">
+              <b>赠送积分给邻里</b>
+              <i id="giftHint">把你的积分让渡给另一位邻里——输入对方用户名，并用你的登录密码做双重确认，积分即刻到达对方账号。</i>
+            </div>
+            <button type="button" class="gift-entry-btn" id="btnGift">去赠送</button>
           </div>
 
           <!-- 五级志愿荣誉：头衔与等级全部绑定真实记录 -->
@@ -298,8 +309,8 @@
     <footer class="foot">数据保存在当前浏览器（localStorage）· 与微信小程序互不相通</footer>
   </div>
 
-  <script src="assets/store.js?v=20260903m"></script>
-  <script src="assets/ui.js?v=20260903m"></script>
-  <script src="assets/main.js?v=20260903m"></script>
+  <script src="assets/store.js?v=20260903j"></script>
+  <script src="assets/ui.js?v=20260903j"></script>
+  <script src="assets/main.js?v=20260903j"></script>
 </body>
 </html>
