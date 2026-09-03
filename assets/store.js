@@ -107,6 +107,12 @@ const AppStore = (function () {
       };
       if (typeof raw.pubHonorIdx !== 'undefined') t.pubHonorIdx = toNum(raw.pubHonorIdx, 0, 0, 4);
       if (raw.pubHonorName != null) t.pubHonorName = toStr(raw.pubHonorName, '', 20);
+      // 任务归属（仅存用户名作为本机标识，不存任何私密信息）：
+      // publisher = 发布者，taker = 接单者；缺失 = 历史演示数据，不施加归属限制以保持兼容
+      const publisher = toStr(raw.publisher, '', 20).trim();
+      if (publisher) t.publisher = publisher;
+      const taker = toStr(raw.taker, '', 20).trim();
+      if (taker) t.taker = taker;
       if (Array.isArray(raw.rewardLog)) {
         const logs = [];
         for (let j = Math.max(0, raw.rewardLog.length - 20); j < raw.rewardLog.length; j += 1) {

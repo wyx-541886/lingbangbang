@@ -9,6 +9,20 @@
   const VIEW_IDS = { home: 'view-home', publish: 'view-publish', me: 'view-me', jury: 'view-jury', settings: 'view-settings' };
   const state = { filter: 'all', submitting: false, acting: false };
 
+  /* ===================== 会话与任务归属 =====================
+     任务归属字段 publisher（发布者）/ taker（接单者）仅存用户名作本机标识，
+     不含任何私密信息；旧演示任务缺失归属字段，不施加限制以保持兼容。 */
+  function sessionUsername() {
+    const s = AppStore.getSession();
+    return s ? s.username : '';
+  }
+  function isOwnTask(t) { // 我发布的任务
+    return !!t.publisher && t.publisher === sessionUsername();
+  }
+  function isMyTake(t) { // 我接单的任务
+    return !!t.taker && t.taker === sessionUsername();
+  }
+
   /* ===================== 积分同步 ===================== */
   function syncPoints() {
     const p = AppStore.getPoints();
@@ -30,9 +44,15 @@
     const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
     let action;
     if (withAction && t.status === 'pending') {
-      action = '<button class="accept-btn" data-id="' + escHtml(t.id) + '">接取任务</button>';
+      // 防自接：发布者本人看不到「接取」按钮，只显示归属标识
+      action = isOwnTask(t)
+        ? '<span class="own-tag">我发布的 · 等待邻里接取</span>'
+        : '<button class="accept-btn" data-id="' + escHtml(t.id) + '">接取任务</button>';
     } else if (withAction && t.status === 'doing') {
-      action = '<button class="deliver-btn" data-id="' + escHtml(t.id) + '">交付任务</button>';
+      // 交付仅限接单者本人，发布者 / 旁观者不可代操作，杜绝自我交付刷分
+      action = isMyTake(t)
+        ? '<button class="deliver-btn" data-id="' + escHtml(t.id) + '">交付任务</button>'
+        : '<span class="doing-tag">邻里执行中</span>';
     } else if (t.status === 'done') {
       // 已完成：卡片上展示验收星级摘要；申诉与评分明细收在展开详情里
       const rv = AppStore.getReviewByTask(t.id);
@@ -77,9 +97,13 @@
   function taskDetailHtml(t, showAppeal) {
     const html = [];
     if (t.status === 'pending') {
+      // 悬赏去向按身份分别表述：发布者看「已预扣」，接单邻里看「已预扣可赚取」
+      const rewardTx = isOwnTask(t)
+        ? '悬赏总额 <b class="td-hot">+' + t.reward + '</b> 积分，已从你的积分中预扣，任务完成后将结算给接单邻里。'
+        : '悬赏总额 <b class="td-hot">+' + t.reward + '</b> 积分已由发布者预扣，接单并按时完成后即可获得实际所得。';
       html.push(
         '<div class="td-line"><span class="td-k">等待接取</span>' +
-        '<span class="td-v">悬赏总额 <b class="td-hot">+' + t.reward + '</b> 积分，任务发布即已从你的积分中扣减。</span></div>'
+        '<span class="td-v">' + rewardTx + '</span></div>'
       );
       if (Array.isArray(t.rewardLog) && t.rewardLog.length) {
         const items = t.rewardLog.slice(-5).map(function (r) {
@@ -90,12 +114,15 @@
           '<ul class="td-log">' + items + '</ul></div>'
         );
       }
-      html.push(
-        '<div class="td-acts">' +
-          '<button type="button" class="td-btn bounty" data-bounty="' + escHtml(t.id) + '">＋ 追加积分悬赏</button>' +
-          '<span class="td-tip">迟迟没人接单？追加积分悬赏，让任务更容易被邻里看见。</span>' +
-        '</div>'
-      );
+      // 追加悬赏是发布者专属操作：防止旁人为他人任务充值后自接刷取
+      if (isOwnTask(t)) {
+        html.push(
+          '<div class="td-acts">' +
+            '<button type="button" class="td-btn bounty" data-bounty="' + escHtml(t.id) + '">＋ 追加积分悬赏</button>' +
+            '<span class="td-tip">迟迟没人接单？追加积分悬赏，让任务更容易被邻里看见。</span>' +
+          '</div>'
+        );
+      }
     } else if (t.status === 'doing') {
       html.push(
         '<div class="td-sec">' +
@@ -189,9 +216,15 @@
 
   /* ===================== 接取任务 ===================== */
   async function acceptTask(id) {
+    // 接单需要邻里身份：记录 taker 后交付 / 验收权限才有归属可判
+    const me = sessionUsername();
+    if (!me) { UI.toast('请先登录邻里身份，再接取任务'); showAuthMask('login'); return; }
+
     const tasks = AppStore.getTasks();
     const t = tasks.find(function (x) { return x.id === id; });
     if (!t || t.status !== 'pending') return;
+    // 防自接核心校验：发布者不能接收自己发布的任务（按钮层已隐藏，此处再兜底）
+    if (isOwnTask(t)) { UI.toast('这是你自己发布的任务，不能接取'); return; }
 
     // 预估实际所得（不落库），交付时按 20% 抽成注入爱心池
     const settle = AppStore.calcTaskReward(t.reward);
@@ -212,6 +245,7 @@
       const target = list.find(function (x) { return x.id === id; });
       if (target && target.status === 'pending') {
         target.status = 'doing';
+        target.taker = me; // 记录接单者，交付 / 验收权限据此判断
         AppStore.saveTasks(list);
       }
       UI.hideLoading();
@@ -227,6 +261,11 @@
     const tasks = AppStore.getTasks();
     const t = tasks.find(function (x) { return x.id === id; });
     if (!t || t.status !== 'doing') return;
+    // 交付 = 接单者的完成申报，仅本人可发起，发布者 / 旁观者不可代操作
+    if (!isMyTake(t)) {
+      UI.toast('只有接单者本人可以交付该任务');
+      return;
+    }
 
     const settle = AppStore.calcTaskReward(t.reward);
 
@@ -292,6 +331,10 @@
     e.preventDefault();
     if (state.submitting) return;
 
+    // 发布需登录邻里身份：任务要记录发布者，才能保证发布者不会误接 / 代交付自己的任务
+    const me = sessionUsername();
+    if (!me) { UI.toast('请先登录邻里身份，再发布任务'); showAuthMask('login'); return; }
+
     const title = $('pubTitle').value.trim();
     const desc = $('pubDesc').value.trim();
     const rewardRaw = $('pubReward').value.trim();
@@ -322,6 +365,7 @@
         reward: rewardNum,
         status: 'pending',
         createTime: new Date().toLocaleString(),
+        publisher: me, // 发布者用户名：防自接 / 防代交付的归属依据
         pubHonorIdx: honorNow.levelIdx,
         pubHonorName: honorNow.level.name
       };
@@ -1195,6 +1239,8 @@
   function openBountyModal(taskId) {
     const t = AppStore.getTasks().find(function (x) { return String(x.id) === String(taskId); });
     if (!t || t.status !== 'pending') { UI.toast('该任务当前无法追加悬赏'); return; }
+    // 追加悬赏仅发布者本人可操作
+    if (!isOwnTask(t)) { UI.toast('只有任务发布者可以追加悬赏'); return; }
     if (!bountyMaskEl) bountyMaskEl = buildBountyMask();
     const m = bountyMaskEl;
     bountyTaskId = String(taskId);

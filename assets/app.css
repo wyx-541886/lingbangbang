@@ -463,6 +463,23 @@
   background: rgba(120, 150, 100, 0.14);
 }
 
+/* 归属标识：我发布的（防自接）/ 他人在执行中（防代交付刷分） */
+.own-tag {
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  color: #8A6A22;
+  background: rgba(196, 136, 42, 0.1);
+  border: 1px dashed rgba(196, 136, 42, 0.55);
+}
+.doing-tag {
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  color: #4A6E86;
+  background: rgba(88, 116, 140, 0.12);
+}
+
 /* 空状态 */
 .empty {
   padding: 70px 20px;
