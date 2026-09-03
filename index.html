@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>邻帮帮 · 邻里互助任务平台</title>
-<link rel="stylesheet" href="assets/base.css?v=20260903c">
-<link rel="stylesheet" href="assets/app.css?v=20260903c">
+<link rel="stylesheet" href="assets/base.css?v=20260903g">
+<link rel="stylesheet" href="assets/app.css?v=20260903g">
 </head>
 <body>
 
@@ -55,6 +55,10 @@
               <button class="big-btn alt" id="btnGrab">
                 <span class="big-ic">接</span>
                 <span class="big-txt"><b>接取任务</b><i>帮上忙，完成领积分</i></span>
+              </button>
+              <button class="big-btn jury" id="btnJury" data-nav="jury">
+                <span class="big-ic">审</span>
+                <span class="big-txt"><b>大众评审团</b><i>公开投票，为不公评理</i></span>
               </button>
             </div>
           </div>
@@ -189,6 +193,26 @@
         </div>
       </section>
 
+      <!-- ============ 视图：大众评审团 ============ -->
+      <section class="view" id="view-jury" hidden>
+        <div class="pane jury-pane">
+          <div class="pane-head">
+            <h2 class="pane-title">大众评审团</h2>
+            <p class="pane-sub">收到不公正差评的邻里可以在「我的任务」中发起申诉。这里的每一桩案件都面向全社区公开：你来当评审，投出公道的一票。</p>
+          </div>
+          <div class="jury-rule">
+            <span class="jr-ic">&#9878;</span>
+            <span class="jr-tx">裁决规则：任一方先获 <b>3</b> 票且领先至少 <b>2</b> 票即自动结案并公示。<b>支持申诉</b> 一方胜出 → 撤销该笔差评、恢复信誉；<b>维持差评</b> 一方胜出 → 原判生效。</span>
+          </div>
+          <div class="jury-list" id="juryList"></div>
+          <div class="empty" id="juryEmpty" hidden>
+            <span class="empty-ic">&#9878;</span>
+            <p class="empty-tx">当前没有待评审的申诉</p>
+            <p class="empty-sub">当你收到不公正的差评时，可在「我的 → 我的任务」中找到该任务发起申诉</p>
+          </div>
+        </div>
+      </section>
+
       <!-- ============ 视图：设置 ============ -->
       <section class="view" id="view-settings" hidden>
         <div class="pane set-pane">
@@ -227,8 +251,8 @@
     <footer class="foot">数据保存在当前浏览器（localStorage）· 与微信小程序互不相通</footer>
   </div>
 
-  <script src="assets/store.js?v=20260903c"></script>
-  <script src="assets/ui.js?v=20260903c"></script>
-  <script src="assets/main.js?v=20260903c"></script>
+  <script src="assets/store.js?v=20260903g"></script>
+  <script src="assets/ui.js?v=20260903g"></script>
+  <script src="assets/main.js?v=20260903g"></script>
 </body>
 </html>

@@ -891,6 +891,9 @@
 .rp-num.low { color: #C4553F; }
 
 .rp-stars {
+  /* inline-block：让宽度收缩到 5 颗星本身，fill 的百分比宽度才能精确切在星条上，
+     否则容器占满整行，预览第 3 颗星也会因裁剪宽度超过星条宽度而显示全亮 */
+  display: inline-block;
   position: relative;
   height: 42px;
   cursor: pointer;
@@ -898,17 +901,16 @@
 }
 
 .s-base, .s-fill {
-  position: absolute;
-  left: 0;
-  top: 0;
   font-size: 32px;
   line-height: 42px;
   letter-spacing: 6px;
   white-space: nowrap;
 }
 
-.s-base { color: #E8DBBC; pointer-events: none; }
-.s-fill { color: #EFA63E; overflow: hidden; width: 0; text-shadow: 0 1px 1px rgba(255, 255, 255, 0.35); pointer-events: none; }
+/* 让 .s-base 作为 in-flow 元素撑开 .rp-stars / .ap-stars，
+   避免容器被父级拉成全宽，导致点击坐标和实际星条错位 */
+.s-base { position: relative; display: inline-block; color: #E8DBBC; pointer-events: none; }
+.s-fill { position: absolute; left: 0; top: 0; color: #EFA63E; overflow: hidden; width: 0; text-shadow: 0 1px 1px rgba(255, 255, 255, 0.35); pointer-events: none; }
 
 .rp-hint { margin-top: 6px; font-size: 12px; color: var(--text-faint); }
 
@@ -947,4 +949,353 @@
   .rp-body { padding-left: 0; padding-right: 0; }
   .s-base, .s-fill { font-size: 28px; }
   .rate-summary { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   大众评审团 & 申诉（信誉公平救济）
+   ============================================================ */
+
+/* 主页评审团按钮：公平绿，区别于金色“发布”与半透明白“接取” */
+.big-btn.jury {
+  background: linear-gradient(170deg, #EDF4E6 0%, #D3E6C2 45%, #9DC480 100%);
+  border-color: rgba(120, 160, 90, 0.5);
+  box-shadow: 0 12px 26px rgba(110, 150, 70, 0.2), inset 0 2px 0 rgba(255, 255, 255, 0.8);
+}
+
+.big-btn.jury .big-ic {
+  background: rgba(255, 255, 255, 0.55);
+  color: #4C6B2F;
+  border-color: rgba(255, 255, 255, 0.75);
+}
+
+.big-btn.jury .big-txt b { color: #3D5A26; }
+.big-btn.jury .big-txt i { color: rgba(61, 90, 38, 0.72); }
+
+.big-btn.jury:hover { box-shadow: 0 18px 36px rgba(110, 150, 70, 0.34); }
+
+/* 评审团视图 */
+.jury-pane { max-width: 900px; margin: 0 auto; padding: 34px 34px 44px; }
+
+.jury-rule {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  margin-bottom: 26px;
+  border-radius: 14px;
+  background: rgba(120, 160, 90, 0.1);
+  border: 1px dashed rgba(120, 160, 90, 0.55);
+  color: var(--text-sub);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.jury-rule b { color: #4C6B2F; }
+
+.jr-ic {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: rgba(120, 160, 90, 0.22);
+  color: #4C6B2F;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.jr-tx { flex: 1; }
+
+.jury-list { display: flex; flex-direction: column; gap: 18px; }
+
+.jury-card {
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 20px 22px;
+  box-shadow: 0 8px 18px rgba(140, 105, 45, 0.08);
+}
+
+.jury-card.rejected, .jury-card.upheld { opacity: 0.94; }
+
+.jc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.jc-tt { font-size: 15px; font-weight: 800; color: var(--text-main); }
+
+.jv-tag {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.jv-tag.voting { background: rgba(196, 136, 42, 0.16); color: #8A6A22; }
+.jv-tag.ok { background: rgba(120, 160, 90, 0.18); color: #3E6B2F; }
+.jv-tag.no { background: rgba(196, 85, 63, 0.14); color: #B34B35; }
+
+.jc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+.jc-diff b { color: #B34B35; font-weight: 800; }
+.jc-star { color: #A06B16; font-weight: 700; }
+.jc-cm { width: 100%; color: var(--text-faint); }
+
+.jc-reason {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 252, 245, 0.8);
+  border: 1px solid rgba(190, 158, 108, 0.28);
+  border-radius: 12px;
+}
+
+.jc-rl { font-size: 11px; color: var(--text-faint); font-weight: 700; letter-spacing: 1px; }
+.jc-rt { margin-top: 6px; font-size: 13px; color: var(--text-sub); line-height: 1.7; }
+
+/* 票箱 */
+.jv-ballot {
+  margin-top: 14px;
+  padding: 14px 16px 16px;
+  background: rgba(255, 252, 245, 0.55);
+  border: 1px dashed rgba(190, 158, 108, 0.42);
+  border-radius: 14px;
+}
+
+.jb-votes { display: flex; gap: 10px; }
+
+.jb-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 9px 0;
+  border-radius: 11px;
+  background: rgba(190, 158, 108, 0.08);
+}
+
+.jb-side.support { background: rgba(120, 160, 90, 0.14); }
+.jb-side.reject { background: rgba(196, 85, 63, 0.07); }
+
+.jb-side b { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.jb-side.support b { color: #3E6B2F; }
+.jb-side.reject b { color: #B34B35; }
+.jb-side i { font-style: normal; font-size: 11px; color: var(--text-faint); margin-top: 3px; }
+
+.jb-bar {
+  display: flex;
+  height: 8px;
+  margin-top: 12px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: rgba(190, 158, 108, 0.16);
+}
+
+.jb-fill.support { background: linear-gradient(90deg, #A8C890, #7FAF5E); }
+.jb-fill.reject { background: linear-gradient(90deg, #E0A08A, #C96A50); }
+
+.jb-hint { margin-top: 8px; font-size: 12px; color: var(--text-faint); text-align: center; }
+
+.jb-btns { display: flex; gap: 10px; margin-top: 12px; }
+
+.vote-btn {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.vote-btn.support {
+  background: rgba(120, 160, 90, 0.16);
+  color: #3E6B2F;
+  border: 1px solid rgba(120, 160, 90, 0.55);
+}
+
+.vote-btn.support:hover { background: rgba(120, 160, 90, 0.3); }
+
+.vote-btn.reject {
+  background: rgba(196, 85, 63, 0.07);
+  color: #A35A48;
+  border: 1px solid rgba(196, 85, 63, 0.4);
+}
+
+.vote-btn.reject:hover { background: rgba(196, 85, 63, 0.16); }
+
+/* 裁决公示 */
+.jv-verdict {
+  margin-top: 14px;
+  padding: 13px 16px;
+  border-radius: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.jv-verdict.ok { background: rgba(120, 160, 90, 0.13); border: 1px solid rgba(120, 160, 90, 0.45); }
+.jv-verdict.no { background: rgba(196, 85, 63, 0.08); border: 1px solid rgba(196, 85, 63, 0.32); }
+
+.jv-vt { font-size: 14px; line-height: 1.6; color: var(--text-main); }
+.jv-vt b { display: block; font-size: 15px; }
+.jv-verdict.ok .jv-vt b { color: #3E6B2F; }
+.jv-verdict.no .jv-vt b { color: #A35A48; }
+.jv-vm { font-size: 11px; color: var(--text-faint); }
+
+.jc-foot { margin-top: 10px; }
+.jc-time { font-size: 11px; color: var(--text-faint); }
+
+/* 任务卡片上的差评申诉入口 */
+.done-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.appeal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  background: rgba(196, 85, 63, 0.1);
+  color: #B34B35;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid rgba(196, 85, 63, 0.45);
+  white-space: nowrap;
+}
+
+.appeal-btn:hover { background: rgba(196, 85, 63, 0.2); }
+.appeal-btn:active { transform: scale(0.96); }
+
+.done-appeal {
+  padding: 7px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.done-appeal.ok { color: #3E6B2F; background: rgba(120, 160, 90, 0.16); }
+.done-appeal.no { color: #A35A48; background: rgba(196, 120, 63, 0.14); }
+
+/* 申诉弹窗 */
+.appeal-mask .appeal-panel {
+  position: relative;
+  width: min(540px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: #FFFCF8;
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(60, 40, 10, 0.32);
+  transform: scale(0.94) translateY(6px);
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.appeal-mask.show .appeal-panel { transform: scale(1) translateY(0); }
+
+.ap-title {
+  padding: 22px 24px 2px;
+  font-size: 18px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--text-main);
+}
+
+.ap-task { padding: 10px 24px 0; display: flex; flex-direction: column; gap: 4px; }
+
+.ap-tk { font-size: 15px; font-weight: 700; color: var(--text-main); }
+.ap-td { font-size: 13px; color: var(--text-sub); line-height: 1.6; }
+.ap-tw { font-size: 12px; color: var(--text-faint); }
+
+.ap-verdict {
+  margin: 14px 24px 0;
+  padding: 14px 16px;
+  background: rgba(196, 85, 63, 0.05);
+  border: 1px dashed rgba(196, 85, 63, 0.42);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.ap-vt { font-size: 12px; color: var(--text-faint); }
+
+.ap-stars {
+  display: inline-block;
+  position: relative;
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: 2px;
+  color: rgba(190, 158, 108, 0.35);
+}
+
+.ap-stars .s-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: #E0A63C;
+}
+
+.ap-rate { font-size: 12px; color: var(--text-sub); }
+.ap-cm { font-size: 12px; color: var(--text-sub); line-height: 1.5; }
+.ap-punish { font-size: 13px; color: var(--text-main); }
+.ap-punish b { color: #B34B35; font-weight: 800; }
+
+.ap-reason {
+  display: block;
+  margin: 14px 24px 0;
+  padding: 12px 14px;
+  width: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(190, 158, 108, 0.42);
+  background: #FFFDF7;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-main);
+  resize: vertical;
+  min-height: 96px;
+}
+
+.ap-reason:focus { outline: none; border-color: rgba(196, 136, 42, 0.75); }
+
+.ap-tip {
+  margin: 10px 24px 4px;
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--text-faint);
+}
+
+.appeal-mask .modal-btns { margin-top: 16px; border-top: 0.5px solid rgba(190, 158, 108, 0.32); }
+
+@media (max-width: 700px) {
+  .big-btn.jury { min-width: 0; }
+  .jb-btns { flex-direction: column; }
+  .jury-pane { padding: 24px 18px 34px; }
+  .appeal-mask .appeal-panel { width: min(520px, 96vw); }
+  .ap-verdict { margin-left: 16px; margin-right: 16px; }
+  .ap-task, .ap-reason { margin-left: 16px; margin-right: 16px; }
+  .ap-tip { margin-left: 16px; margin-right: 16px; }
 }

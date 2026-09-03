@@ -7,9 +7,11 @@ const AppStore = (function () {
   const TASKS_KEY = 'linbangbang_tasks';
   const HEART_POOL_KEY = 'linbangbang_heart_pool'; // 爱心池：任务佣金抽成累积，界面不展示
   const CREDIT_KEY = 'linbangbang_credit'; // 信誉：score 0-100 + 变动记录
-  const REVIEWS_KEY = 'linbangbang_reviews'; // 交付评分：发布者对完成度/态度的五星评价（半星粒度）
+  const REVIEWS_KEY = 'linbangbang_reviews'; // 交付评分：发布者对完成度/态度的五星整星评价
+  const APPEALS_KEY = 'linbangbang_appeals'; // 申诉案件：被差评方可发起申诉，交由大众评审团公开投票
   const COMMISSION_RATE = 0.2; // 任务佣金抽成比例：20%
-  const mem = { points: null, tasks: null, heartPool: null, credit: null, reviews: null };
+  const APPEAL_VOTE_NEED = 3; // 评审团裁决门槛：某一方向票数达到该值
+  const mem = { points: null, tasks: null, heartPool: null, credit: null, reviews: null, appeals: null };
 
   function read(key, fallback) {
     try {
@@ -61,6 +63,14 @@ const AppStore = (function () {
       write(REVIEWS_KEY, reviews);
     }
     mem.reviews = reviews;
+
+    // 申诉案件：旧数据无此 key 时初始化为空数组
+    let appeals = read(APPEALS_KEY, null);
+    if (!Array.isArray(appeals)) {
+      appeals = [];
+      write(APPEALS_KEY, appeals);
+    }
+    mem.appeals = appeals;
   }
   init();
 
@@ -88,7 +98,11 @@ const AppStore = (function () {
     return mem.points;
   }
 
-  function clearTasks() { saveTasks([]); }
+  function clearTasks() {
+    saveTasks([]);
+    mem.appeals = [];
+    write(APPEALS_KEY, mem.appeals);
+  }
 
   function getHeartPool() { return mem.heartPool; }
 
@@ -138,10 +152,10 @@ const AppStore = (function () {
   }
 
   /* ===================== 交付评分系统 ===================== */
-  // 星级取值合法化：支持半星（0.5 步进），范围 0.5 ~ 5
+  // 星级取值合法化：只允许整颗星（1~5），历史遗留的 0.5 步进值会吸附到最近整星
   function clampStar(v) {
     if (!isFinite(v)) v = 3;
-    return Math.max(0.5, Math.min(5, Math.round(Number(v) * 2) / 2));
+    return Math.max(1, Math.min(5, Math.round(Number(v))));
   }
 
   // 换算规则：以 3 星为公平基准，每高/低 0.25 星信誉 ±1（即每 1 星 ±4）
@@ -190,12 +204,14 @@ const AppStore = (function () {
   }
 
   // 综合评分统计：完成度均值、态度均值、综合均星
+  // 经大众评审团裁定撤销（upheld）的差评不计入统计
   function getRatingSummary() {
-    const n = mem.reviews.length;
+    const valid = mem.reviews.filter(function (r) { return r.appealStatus !== 'upheld'; });
+    const n = valid.length;
     if (!n) return null;
     let c = 0;
     let a = 0;
-    mem.reviews.forEach(function (r) { c += r.completion; a += r.attitude; });
+    valid.forEach(function (r) { c += r.completion; a += r.attitude; });
     const round = function (x) { return Math.round(x * 100) / 100; };
     return {
       count: n,
@@ -205,11 +221,125 @@ const AppStore = (function () {
     };
   }
 
+  /* ===================== 申诉 & 大众评审团 ===================== */
+  function getAppeals() { return mem.appeals.slice(); }
+
+  function getAppealByTaskId(taskId) {
+    const id = String(taskId == null ? '' : taskId);
+    for (let i = 0; i < mem.appeals.length; i += 1) {
+      if (mem.appeals[i].taskId === id) return mem.appeals[i];
+    }
+    return null;
+  }
+
+  function getAppealById(id) {
+    for (let i = 0; i < mem.appeals.length; i += 1) {
+      if (mem.appeals[i].id === id) return mem.appeals[i];
+    }
+    return null;
+  }
+
+  // 统计一桩申诉当前的票箱：{ support: 支持申诉票数, reject: 维持差评票数 }
+  function countAppealVotes(a) {
+    let support = 0;
+    let reject = 0;
+    (a.votes || []).forEach(function (v) {
+      if (v.side === 'support') support += 1;
+      else if (v.side === 'reject') reject += 1;
+    });
+    return { support: support, reject: reject };
+  }
+
+  // 被差评方提交申诉（一笔任务只可申诉一次）
+  function submitAppeal(info) {
+    const taskId = String(info.taskId == null ? '' : info.taskId);
+    if (getAppealByTaskId(taskId)) {
+      return { ok: false, msg: '该任务已提交过申诉，请前往大众评审团查看进展' };
+    }
+    const rv = getReviewByTask(taskId);
+    if (!rv) return { ok: false, msg: '该任务还没有验收评分，无法申诉' };
+    if (rv.delta >= 0) return { ok: false, msg: '本次验收未扣信誉，无需申诉' };
+    const reason = String(info.reason == null ? '' : info.reason).trim().slice(0, 200);
+    if (!reason) return { ok: false, msg: '请先说明你的申诉理由' };
+
+    const a = {
+      id: String(Date.now()) + '-' + Math.floor(Math.random() * 1000),
+      taskId: taskId,
+      reviewId: rv.id,
+      taskTitle: rv.taskTitle,
+      review: {
+        completion: rv.completion,
+        attitude: rv.attitude,
+        avg: rv.avg,
+        delta: rv.delta,
+        comment: rv.comment,
+        time: rv.time
+      },
+      reason: reason,
+      status: 'voting', // voting 评审中 / upheld 申诉成立 / rejected 维持差评
+      votes: [],
+      created: new Date().toLocaleString(),
+      closed: null
+    };
+    mem.appeals.unshift(a);
+    write(APPEALS_KEY, mem.appeals);
+    return { ok: true, appeal: a };
+  }
+
+  // 某票是否使双方中一方达到裁决条件：任一方向 ≥3 票且领先 ≥2
+  function canDecide(support, reject) {
+    const high = Math.max(support, reject);
+    return high >= APPEAL_VOTE_NEED && Math.abs(support - reject) >= 2;
+  }
+
+  // 邻里投票：side = support（支持申诉，撤销差评）| reject（维持差评）
+  // 达到裁决条件即自动结案；申诉成立会撤销该次差评并恢复信誉
+  function voteAppeal(appealId, side) {
+    const a = getAppealById(String(appealId));
+    if (!a || a.status !== 'voting') {
+      return { ok: false, msg: '该申诉已结案或不存在' };
+    }
+    if (side !== 'support' && side !== 'reject') return { ok: false, msg: '无效的投票' };
+
+    a.votes.push({ side: side, at: new Date().toLocaleString() });
+    const c = countAppealVotes(a);
+
+    let decided = false;
+    let result = null;
+    if (canDecide(c.support, c.reject)) {
+      decided = true;
+      result = c.support > c.reject ? 'upheld' : 'rejected';
+    }
+
+    if (decided) {
+      a.status = result;
+      a.closed = new Date().toLocaleString();
+      const rv = getReviewByTask(a.taskId);
+      if (result === 'upheld') {
+        // 撤销扣分：把该笔差评扣掉的信誉加回，并公示撤销状态
+        if (rv && rv.delta < 0 && rv.appealStatus !== 'upheld') {
+          rv.appealStatus = 'upheld';
+          write(REVIEWS_KEY, mem.reviews);
+          changeCredit(-rv.delta,
+            '任务《' + a.taskTitle + '》差评经大众评审团裁定申诉成立，原扣 ' + rv.delta + ' 分已撤销，信誉恢复',
+            { appeal: 'upheld' });
+        }
+      } else if (rv) {
+        rv.appealStatus = 'rejected';
+        write(REVIEWS_KEY, mem.reviews);
+      }
+    }
+    write(APPEALS_KEY, mem.appeals);
+    return { ok: true, decided: decided, result: result, appeal: a, support: c.support, reject: c.reject };
+  }
+
   function resetCredit() {
     mem.credit = { score: 100, history: [] };
     mem.reviews = [];
+    mem.appeals = [];
     write(CREDIT_KEY, mem.credit);
     write(REVIEWS_KEY, mem.reviews);
+    write(APPEALS_KEY, mem.appeals);
     return mem.credit.score;
   }
 
@@ -230,6 +360,11 @@ const AppStore = (function () {
     addReview,
     getReviewByTask,
     getRatingSummary,
-    resetCredit
+    resetCredit,
+    getAppeals,
+    getAppealByTaskId,
+    countAppealVotes,
+    submitAppeal,
+    voteAppeal
   };
 })();

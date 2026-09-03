@@ -6,7 +6,7 @@
 
   const $ = function (id) { return document.getElementById(id); };
 
-  const VIEW_IDS = { home: 'view-home', publish: 'view-publish', me: 'view-me', settings: 'view-settings' };
+  const VIEW_IDS = { home: 'view-home', publish: 'view-publish', me: 'view-me', jury: 'view-jury', settings: 'view-settings' };
   const state = { filter: 'all', submitting: false, acting: false };
 
   /* ===================== 积分同步 ===================== */
@@ -26,7 +26,7 @@
     done:    { cls: 'done',    txt: '已完成' }
   };
 
-  function cardHtml(t, withAction) {
+  function cardHtml(t, withAction, showAppeal) {
     const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
     let action;
     if (withAction && t.status === 'pending') {
@@ -34,12 +34,27 @@
     } else if (withAction && t.status === 'doing') {
       action = '<button class="deliver-btn" data-id="' + t.id + '">交付任务</button>';
     } else if (t.status === 'done') {
-      let rateTxt = '';
+      // 已完成：展示验收星级；若被差评，在“我的任务”中提供申诉入口
       const rv = AppStore.getReviewByTask(t.id);
+      const ap = AppStore.getAppealByTaskId(t.id);
+      let stateTxt = '<span class="done-tag">&#10003; 已完成</span>';
       if (rv) {
-        rateTxt = '<span class="done-rate">&#9733; ' + rv.avg + ' 均星</span>';
+        if (rv.appealStatus === 'upheld') {
+          stateTxt += '<span class="done-appeal ok">&#9878; 申诉成立 · 差评撤销</span>';
+        } else if (rv.appealStatus === 'rejected') {
+          stateTxt += '<span class="done-appeal no">申诉被驳回</span>';
+        } else {
+          stateTxt += '<span class="done-rate">&#9733; ' + rv.avg + ' 均星</span>';
+        }
       }
-      action = '<span class="done-meta"><span class="done-tag">&#10003; 已完成</span>' + rateTxt + '</span>';
+      if (showAppeal && rv && rv.delta < 0 && !ap) {
+        action = '<span class="done-actions">' +
+          '<span class="done-meta">' + stateTxt + '</span>' +
+          '<button class="appeal-btn" data-appeal="' + t.id + '">&#9878; 不服 · 去申诉</button>' +
+        '</span>';
+      } else {
+        action = '<span class="done-meta">' + stateTxt + '</span>';
+      }
     } else {
       action = '<span class="done-tag">待接取</span>';
     }
@@ -57,13 +72,13 @@
     '</article>';
   }
 
-  function renderList(gridEl, tasks, emptyEl, withAction) {
+  function renderList(gridEl, tasks, emptyEl, withAction, showAppeal) {
     if (tasks.length === 0) {
       gridEl.innerHTML = '';
       if (emptyEl) emptyEl.hidden = false;
       return;
     }
-    gridEl.innerHTML = tasks.map(function (t) { return cardHtml(t, withAction); }).join('');
+    gridEl.innerHTML = tasks.map(function (t) { return cardHtml(t, withAction, showAppeal); }).join('');
     if (emptyEl) emptyEl.hidden = true;
   }
 
@@ -101,7 +116,7 @@
       content:
         '确定接取「' + t.title + '」吗？\n\n' +
         '本单悬赏佣金 ' + t.reward + ' 积分。为把善意传递给更多需要帮助的邻里，平台将从中提取 20%（' + settle.commission + ' 积分），汇入爱心公益池，专项用于关怀社区困难人群。\n\n' +
-        '接单后请按时认真交付：任务完成时，发布者将按「完成度 + 服务态度」为你打星验收（五星制、支持半星），星级会公平换算为信誉分增减。',
+        '接单后请按时认真交付：任务完成时，发布者将按「完成度 + 服务态度」为你打星验收（五星整星制），星级会公平换算为信誉分增减。',
       confirmText: '接取',
       cancelText: '再想想'
     });
@@ -131,7 +146,7 @@
 
     const settle = AppStore.calcTaskReward(t.reward);
 
-    // 交付 → 发布者验收评分（完成度 + 服务态度，五星半星制）
+    // 交付 → 发布者验收评分（完成度 + 服务态度，五星整星制）
     const rating = await UI.openRate({
       title: t.title,
       reward: t.reward,
@@ -325,7 +340,216 @@
     $('meDone').textContent = tasks.filter(function (t) { return t.status === 'done'; }).length;
     renderCredit();
     renderRatingSummary();
-    renderList($('meTaskGrid'), tasks.slice(0, 12), $('meEmpty'), true);
+    renderList($('meTaskGrid'), tasks.slice(0, 12), $('meEmpty'), true, true);
+  }
+
+  /* ===================== 申诉 & 大众评审团 ===================== */
+  // 差评卡片上的“去申诉”：打开申诉面板，陈述理由后提交到大众评审团
+  let appealMaskEl = null;
+  let appealTaskId = null;
+
+  function buildAppealMask() {
+    const m = document.createElement('div');
+    m.className = 'modal-mask appeal-mask';
+    m.innerHTML =
+      '<div class="appeal-panel">' +
+        '<button class="modal-x" type="button" aria-label="关闭">&times;</button>' +
+        '<div class="ap-title">申诉差评 · 请求大众评审</div>' +
+        '<div class="ap-task"></div>' +
+        '<div class="ap-verdict"></div>' +
+        '<textarea class="ap-reason" maxlength="200" rows="4" placeholder="请说明你的申诉理由，例如：任务其实完成得很好，对方因私人原因给了低分……"></textarea>' +
+        '<div class="ap-tip">提交后该案件将进入「大众评审团」，全社区公开投票：支持申诉一方满 3 票且领先至少 2 票，即撤销差评并恢复你的信誉分。每笔任务限申诉一次。</div>' +
+        '<div class="modal-btns">' +
+          '<button type="button" class="modal-btn cancel">暂不申诉</button>' +
+          '<button type="button" class="modal-btn submit">提交申诉</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(m);
+
+    m.addEventListener('click', function (e) {
+      if (e.target === m) closeAppeal(null);
+    });
+    m.querySelector('.modal-x').addEventListener('click', function () { closeAppeal(null); });
+    m.querySelector('.modal-btns .cancel').addEventListener('click', function () { closeAppeal(null); });
+    m.querySelector('.modal-btns .submit').addEventListener('click', function () {
+      const reason = m.querySelector('.ap-reason').value.trim();
+      if (!reason) { UI.toast('请先填写申诉理由'); return; }
+      closeAppeal(reason);
+    });
+    return m;
+  }
+
+  function showAppealMask(info) {
+    if (!appealMaskEl) appealMaskEl = buildAppealMask();
+    const m = appealMaskEl;
+    m.querySelector('.ap-reason').value = '';
+    const task = m.querySelector('.ap-task');
+    if (task) {
+      task.innerHTML =
+        '<span class="ap-tk">《' + escHtml(info.title) + '》</span>' +
+        '<span class="ap-td">' + escHtml(info.desc || '') + '</span>' +
+        '<span class="ap-tw">悬赏 ' + info.reward + ' 积分 · 交付于 ' + escHtml(info.time) + '</span>';
+    }
+    const vd = m.querySelector('.ap-verdict');
+    if (vd) {
+      vd.innerHTML =
+        '<span class="ap-vt">你收到的验收</span>' +
+        '<div class="ap-stars">' +
+          '<span class="s-base" aria-hidden="true">★★★★★</span>' +
+          '<span class="s-fill" style="width:' + (info.avg / 5 * 100) + '%" aria-hidden="true">★★★★★</span>' +
+        '</div>' +
+        '<span class="ap-rate">完成度 ' + info.completion + '★ · 态度 ' + info.attitude + '★ · 均星 ' + info.avg + '</span>' +
+        (info.comment ? '<span class="ap-cm">评语：「' + escHtml(info.comment) + '」</span>' : '') +
+        '<span class="ap-punish">本次差评扣除信誉 <b>' + info.delta + '</b> 分</span>';
+    }
+    m.classList.add('show');
+  }
+
+  function closeAppeal(reason) {
+    if (!appealMaskEl) return;
+    const id = appealTaskId;
+    appealTaskId = null;
+    appealMaskEl.classList.remove('show');
+    if (reason && id) doSubmitAppeal(id, reason);
+  }
+
+  function doSubmitAppeal(taskId, reason) {
+    const r = AppStore.submitAppeal({ taskId: taskId, reason: reason });
+    if (!r.ok) { UI.toast(r.msg); return; }
+    renderMe();
+    renderBoard();
+    UI.toast('申诉已提交，等待大众评审', 'success');
+    setTimeout(function () { nav('jury'); }, 420);
+  }
+
+  function openAppeal(taskId) {
+    const tasks = AppStore.getTasks();
+    const t = tasks.find(function (x) { return x.id === taskId; });
+    const rv = t ? AppStore.getReviewByTask(t.id) : null;
+    if (!t || !rv || t.status !== 'done') { UI.toast('该任务暂不支持申诉'); return; }
+    if (rv.delta >= 0) { UI.toast('本次验收未扣信誉，无需申诉'); return; }
+    if (AppStore.getAppealByTaskId(taskId)) {
+      UI.toast('该任务已提交申诉，请前往大众评审团查看');
+      nav('jury');
+      return;
+    }
+    appealTaskId = taskId;
+    showAppealMask({
+      title: t.title,
+      desc: t.desc,
+      reward: t.reward,
+      time: rv.time,
+      avg: rv.avg,
+      completion: rv.completion,
+      attitude: rv.attitude,
+      comment: rv.comment,
+      delta: rv.delta
+    });
+  }
+
+  // 一桩申诉的卡片 HTML
+  function juryCardHtml(a) {
+    const c = AppStore.countAppealVotes(a);
+    const total = c.support + c.reject;
+    const voting = a.status === 'voting';
+    const per = function (x) { return total ? Math.round(x / total * 100) : 0; };
+
+    let stateTag = '';
+    if (voting) stateTag = '<span class="jv-tag voting">评审中</span>';
+    else if (a.status === 'upheld') stateTag = '<span class="jv-tag ok">申诉成立</span>';
+    else stateTag = '<span class="jv-tag no">维持差评</span>';
+
+    let body = '';
+    if (voting) {
+      let hint = '双方未达裁决条件';
+      if (Math.max(c.support, c.reject) >= 3 && Math.abs(c.support - c.reject) < 2) {
+        hint = '高票方仅领先 1 票，再得 1 票即结案';
+      } else if (Math.max(c.support, c.reject) < 3) {
+        hint = '任一方再得 ' + (3 - Math.max(c.support, c.reject)) + ' 票且领先 2 票即结案';
+      }
+      body =
+        '<div class="jv-ballot">' +
+          '<div class="jb-votes">' +
+            '<div class="jb-side support"><b>' + c.support + '</b><i>支持申诉</i></div>' +
+            '<div class="jb-side reject"><b>' + c.reject + '</b><i>维持差评</i></div>' +
+          '</div>' +
+          '<div class="jb-bar">' +
+            '<span class="jb-fill support" style="width:' + per(c.support) + '%"></span>' +
+            '<span class="jb-fill reject" style="width:' + per(c.reject) + '%"></span>' +
+          '</div>' +
+          '<div class="jb-hint">' + hint + '</div>' +
+          '<div class="jb-btns">' +
+            '<button type="button" class="vote-btn support" data-vote="' + a.id + '" data-side="support">&#10003; 支持申诉 · 撤销差评</button>' +
+            '<button type="button" class="vote-btn reject" data-vote="' + a.id + '" data-side="reject">维持差评</button>' +
+          '</div>' +
+        '</div>';
+    } else if (a.status === 'upheld') {
+      body =
+        '<div class="jv-verdict ok">' +
+          '<span class="jv-vi">&#10003;</span>' +
+          '<span class="jv-vt"><b>大众裁定：申诉成立</b>该差评已撤销，扣除的 ' + (-a.review.delta) + ' 信誉分已恢复。</span>' +
+          '<span class="jv-vm">支持 ' + c.support + ' 票 · 维持 ' + c.reject + ' 票 · 结案于 ' + escHtml(a.closed) + '</span>' +
+        '</div>';
+    } else {
+      body =
+        '<div class="jv-verdict no">' +
+          '<span class="jv-vi">&#10005;</span>' +
+          '<span class="jv-vt"><b>大众裁定：维持原差评</b>本次申诉未获支持，原差评与信誉扣除保持不变。</span>' +
+          '<span class="jv-vm">支持 ' + c.support + ' 票 · 维持 ' + c.reject + ' 票 · 结案于 ' + escHtml(a.closed) + '</span>' +
+        '</div>';
+    }
+
+    return '<article class="jury-card ' + a.status + '">' +
+      '<div class="jc-head">' +
+        '<span class="jc-tt">申诉案件 · 任务《' + escHtml(a.taskTitle) + '》</span>' +
+        stateTag +
+      '</div>' +
+      '<div class="jc-meta">' +
+        '<span class="jc-diff">原差评扣 <b>' + a.review.delta + '</b></span>' +
+        '<span class="jc-star">&#9733; ' + a.review.avg + ' 均星（完成度 ' + a.review.completion + ' / 态度 ' + a.review.attitude + '）</span>' +
+        '<span class="jc-cm">评语：' + escHtml(a.review.comment || '无') + '</span>' +
+      '</div>' +
+      '<div class="jc-reason">' +
+        '<span class="jc-rl">申诉陈述</span>' +
+        '<p class="jc-rt">' + escHtml(a.reason) + '</p>' +
+      '</div>' +
+      body +
+      '<div class="jc-foot"><span class="jc-time">' + escHtml(a.created) + ' 立案' + (a.closed ? ' · ' + escHtml(a.closed) + ' 结案' : '') + '</span></div>' +
+    '</article>';
+  }
+
+  function renderJury() {
+    const list = AppStore.getAppeals().sort(function (x, y) {
+      if (x.status === 'voting' && y.status !== 'voting') return -1;
+      if (y.status === 'voting' && x.status !== 'voting') return 1;
+      return 0;
+    });
+    const grid = $('juryList');
+    const emptyEl = $('juryEmpty');
+    if (!list.length) {
+      grid.innerHTML = '';
+      if (emptyEl) emptyEl.hidden = false;
+      return;
+    }
+    if (emptyEl) emptyEl.hidden = true;
+    grid.innerHTML = list.map(juryCardHtml).join('');
+  }
+
+  function doVote(appealId, side) {
+    const r = AppStore.voteAppeal(appealId, side);
+    if (!r.ok) { UI.toast(r.msg); return; }
+    if (r.decided) {
+      if (r.result === 'upheld') {
+        UI.toast('评审达成共识：申诉成立，差评撤销、信誉已恢复', 'success');
+      } else {
+        UI.toast('评审达成共识：维持原差评');
+      }
+    } else {
+      UI.toast('你的投票已计入（支持 ' + r.support + ' : 维持 ' + r.reject + '）');
+    }
+    renderJury();
+    renderBoard();
+    renderMe();
   }
 
   /* ===================== 设置 ===================== */
@@ -353,7 +577,7 @@
     } else if (act === 'resetCredit') {
       const ok = await UI.confirm({
         title: '重置信誉分',
-        content: '将信誉恢复为初始的 100，并清空信誉记录与全部历史评分，确定吗？',
+        content: '将信誉恢复为初始的 100，并清空信誉记录、历史评分与全部申诉案件，确定吗？',
         confirmText: '重置'
       });
       if (!ok) return;
@@ -371,12 +595,12 @@
         title: '信誉奖惩制度',
         content:
           '一、评分方式\n' +
-          '每次任务交付后，发布者对交付者按两个维度打星（五星制，支持半星）：\n' +
+          '每次任务交付后，发布者对交付者按两个维度打整星（每维 1~5 颗星）：\n' +
           '· 完成度：任务是否保质保量、结果是否到位\n' +
           '· 服务态度：沟通配合、守时与礼貌程度\n\n' +
           '二、换算规则（单次）\n' +
-          '两维平均得"本次均星"，以 3 星为公平基准：均星每高 0.25 星信誉 +1，每低 0.25 星信誉 -1（约合每差 1 星 ±4 分）。\n' +
-          '速查：5★→+5 · 4.5★→+5 · 4★→+4 · 3.5★→+2 · 3★→0 · 2.5★→-2 · 2★→-4 · ≤1.5★→-5\n\n' +
+          '两维平均得"本次均星"，以 3 星为公平基准：均星每高 1 星信誉 +4，每低 1 星信誉 -4，均星含半星时按 ±2 折算。\n' +
+          '速查：两维都打 5★→+5 · 4★→+4 · 3★→0 · 2★→-4 · 1★→-5\n\n' +
           '三、公平保护\n' +
           '1. 单次封顶：一次评价最多 +5、最多 -5，防止信誉暴涨暴跌，让评分回归真实；\n' +
           '2. 一次一评：每笔任务只能验收一次，交付即评，没有补分空间；\n' +
@@ -384,6 +608,9 @@
           '四、等级影响（满分 100）\n' +
           '· 90-100 邻里之星\n· 75-89 靠谱好邻居\n· 60-74 信用一般\n· 60 以下 待改进\n\n' +
           '分数长期低于 60 的邻里将被标注为"待改进"，影响后续接单机会。\n\n' +
+          '五、申诉救济（大众评审团）\n' +
+          '如果你认为某次验收评分不公（例如被恶意差评），可前往「我的 → 我的任务」，找到该笔任务点击「去申诉」发起申诉，陈述理由后案件进入大众评审团。\n' +
+          '评审团面向全社区公开：支持申诉 / 维持差评任一方先满 3 票且领先至少 2 票即自动结案。申诉成立 → 撤销该笔差评、恢复信誉；申诉失败 → 维持原判。每笔任务限申诉一次。\n\n' +
           '公益互助基于信任。评分不是惩罚工具，而是让每一次善意与尽责，都积累成看得见的信用。',
         showCancel: false,
         confirmText: '知道了',
@@ -434,6 +661,7 @@
     syncPoints();
     if (name === 'home') renderBoard();
     if (name === 'me') renderMe();
+    if (name === 'jury') renderJury();
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -454,7 +682,13 @@
       if (ab) { acceptTask(ab.dataset.id); return; }
 
       const db = e.target.closest ? e.target.closest('.deliver-btn') : null;
-      if (db) { deliverTask(db.dataset.id); }
+      if (db) { deliverTask(db.dataset.id); return; }
+
+      const apb = e.target.closest ? e.target.closest('.appeal-btn') : null;
+      if (apb) { openAppeal(apb.dataset.appeal); return; }
+
+      const vb = e.target.closest ? e.target.closest('.vote-btn') : null;
+      if (vb) { doVote(vb.dataset.vote, vb.dataset.side); return; }
     });
 
     // 接取任务快捷按钮：跳到广场并切到“待接取”

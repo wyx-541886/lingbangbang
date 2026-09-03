@@ -153,10 +153,9 @@ const UI = (function () {
     });
   }
 
-  /* ---------- 星级评分弹窗：发布者验收评分（五星制，支持半星） ---------- */
+  /* ---------- 星级评分弹窗：发布者验收评分（五星整星制） ---------- */
   const STAR_LABELS = {
-    0: '未评分', 0.5: '极差', 1: '很差', 1.5: '差', 2: '较差',
-    2.5: '略欠', 3: '一般', 3.5: '良好', 4: '满意', 4.5: '优秀', 5: '极佳'
+    0: '未评分', 1: '很差', 2: '较差', 3: '一般', 4: '满意', 5: '极佳'
   };
   const RATE_DIMS = [
     { key: 'completion', dim: '完成度', hint: '任务是否保质保量、交付结果是否到位' },
@@ -173,17 +172,20 @@ const UI = (function () {
     const num = row.querySelector('.rp-num');
     if (num) {
       num.textContent = v ? (v + ' 星 · ' + STAR_LABELS[v]) : '未评分';
-      num.className = 'rp-num' + (v >= 4 ? ' high' : v <= 2.5 && v > 0 ? ' low' : '');
+      num.className = 'rp-num' + (v >= 4 ? ' high' : v <= 2 && v > 0 ? ' low' : '');
     }
   }
 
-  // 根据鼠标落点换算 0.5 步进的值（最左 0.5 星，最右 5 星）
+  // 根据鼠标落点换算整星值：鼠标移到哪一颗星上，就点亮到第几颗（1~5）
   function rateValueFromEvent(starsEl, e) {
     if (!starsEl) return 0; // 防御：元素已被重建时不再换算
-    const rect = starsEl.getBoundingClientRect();
+    // 以真实的 5 星容器 .s-base 作为参考宽度，避免父容器过宽时点击位置错位
+    const ref = starsEl.querySelector('.s-base') || starsEl;
+    const rect = ref.getBoundingClientRect();
+    if (!rect.width) return 0;
     const unit = rect.width / 5;
-    const v = Math.round((e.clientX - rect.left) / unit * 2) / 2;
-    return Math.max(0.5, Math.min(5, v));
+    const idx = Math.round((e.clientX - rect.left) / unit); // 0~5
+    return Math.max(1, Math.min(5, idx));
   }
 
   function rateRowHtml(d) {
@@ -241,7 +243,7 @@ const UI = (function () {
       closeRate({ completion: c, attitude: a, comment: comment });
     });
 
-    // 星星行：悬停预览半星、点击定值
+    // 星星行：鼠标移到哪颗星就点亮到第几颗，点击定值（整星）
     m.querySelectorAll('.rp-row').forEach(function (row) {
       row._cur = 0;
       row._hover = 0;
@@ -289,7 +291,7 @@ const UI = (function () {
         sub.textContent =
           '任务「' + info.title + '」\n' +
           '本单佣金 ' + info.reward + ' 积分，验收通过后接取者实得 ' + info.gain + ' 积分。' +
-          '请从两个维度为本次交付打星（支持半星），评分将公平换算为该次交付的信誉分。';
+          '请从两个维度为本次交付打星（每维 1~5 整颗星），评分将公平换算为该次交付的信誉分。';
       }
       const tip = m.querySelector('.rp-tip');
       if (tip) {
