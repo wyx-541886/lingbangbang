@@ -7,8 +7,9 @@ const AppStore = (function () {
   const TASKS_KEY = 'linbangbang_tasks';
   const HEART_POOL_KEY = 'linbangbang_heart_pool'; // 爱心池：任务佣金抽成累积，界面不展示
   const CREDIT_KEY = 'linbangbang_credit'; // 信誉：score 0-100 + 变动记录
+  const REVIEWS_KEY = 'linbangbang_reviews'; // 交付评分：发布者对完成度/态度的五星评价（半星粒度）
   const COMMISSION_RATE = 0.2; // 任务佣金抽成比例：20%
-  const mem = { points: null, tasks: null, heartPool: null, credit: null };
+  const mem = { points: null, tasks: null, heartPool: null, credit: null, reviews: null };
 
   function read(key, fallback) {
     try {
@@ -52,6 +53,14 @@ const AppStore = (function () {
       write(CREDIT_KEY, credit);
     }
     mem.credit = credit;
+
+    // 交付评分记录：旧数据无此 key 时初始化为空数组
+    let reviews = read(REVIEWS_KEY, null);
+    if (!Array.isArray(reviews)) {
+      reviews = [];
+      write(REVIEWS_KEY, reviews);
+    }
+    mem.reviews = reviews;
   }
   init();
 
@@ -109,25 +118,98 @@ const AppStore = (function () {
   function getCreditHistory() { return mem.credit.history; }
 
   // 变动信誉：delta 正为加分、负为扣分，分数夹在 0-100；text 为变动说明（记入明细）
-  function changeCredit(delta, text) {
+  // meta 可选：{ starAvg } 供明细展示本次评分均星
+  function changeCredit(delta, text, meta) {
     const d = Math.round(Number(delta) || 0);
     if (!d) return mem.credit.score;
     mem.credit.score = Math.max(0, Math.min(100, mem.credit.score + d));
     if (text) {
-      mem.credit.history.unshift({
+      const item = {
         time: new Date().toLocaleString(),
         delta: d,
         text: String(text)
-      });
+      };
+      if (meta && typeof meta.starAvg === 'number') item.starAvg = meta.starAvg;
+      mem.credit.history.unshift(item);
       if (mem.credit.history.length > 50) mem.credit.history.length = 50;
     }
     write(CREDIT_KEY, mem.credit);
     return mem.credit.score;
   }
 
+  /* ===================== 交付评分系统 ===================== */
+  // 星级取值合法化：支持半星（0.5 步进），范围 0.5 ~ 5
+  function clampStar(v) {
+    if (!isFinite(v)) v = 3;
+    return Math.max(0.5, Math.min(5, Math.round(Number(v) * 2) / 2));
+  }
+
+  // 换算规则：以 3 星为公平基准，每高/低 0.25 星信誉 ±1（即每 1 星 ±4）
+  // 单次封顶：最高 +5、最低 -5，防信誉暴涨暴跌
+  function calcReviewDelta(completion, attitude) {
+    const avg = Math.round((completion + attitude) / 2 * 4) / 4; // 两维均值，0.25 步
+    return Math.max(-5, Math.min(5, Math.round((avg - 3) * 4)));
+  }
+
+  // 记录一次发布者验收评分：换算信誉 + 追加评价记录，返回 {avg, delta, ...}
+  function addReview(info) {
+    const completion = clampStar(Number(info.completion));
+    const attitude = clampStar(Number(info.attitude));
+    const avg = Math.round((completion + attitude) / 2 * 4) / 4;
+    const delta = calcReviewDelta(completion, attitude);
+    const rec = {
+      id: String(Date.now()),
+      taskId: String(info.taskId == null ? '' : info.taskId),
+      taskTitle: String(info.taskTitle == null ? '邻里任务' : info.taskTitle),
+      completion: completion,
+      attitude: attitude,
+      avg: avg,
+      delta: delta,
+      comment: String(info.comment == null ? '' : info.comment).slice(0, 120),
+      time: new Date().toLocaleString()
+    };
+    if (delta) {
+      const part = delta > 0 ? '交付到位，获邻里好评' : '交付质量欠佳，获邻里差评';
+      changeCredit(delta,
+        '任务《' + rec.taskTitle + '》验收：完成度 ' + completion + '★ + 态度 ' + attitude + '★（均星 ' + avg + '），' + part,
+        { starAvg: avg });
+    }
+    mem.reviews.unshift(rec);
+    if (mem.reviews.length > 50) mem.reviews.length = 50;
+    write(REVIEWS_KEY, mem.reviews);
+    return rec;
+  }
+
+  // 某笔任务是否已有验收评分
+  function getReviewByTask(taskId) {
+    const id = String(taskId == null ? '' : taskId);
+    for (let i = 0; i < mem.reviews.length; i += 1) {
+      if (mem.reviews[i].taskId === id) return mem.reviews[i];
+    }
+    return null;
+  }
+
+  // 综合评分统计：完成度均值、态度均值、综合均星
+  function getRatingSummary() {
+    const n = mem.reviews.length;
+    if (!n) return null;
+    let c = 0;
+    let a = 0;
+    mem.reviews.forEach(function (r) { c += r.completion; a += r.attitude; });
+    const round = function (x) { return Math.round(x * 100) / 100; };
+    return {
+      count: n,
+      completion: round(c / n),
+      attitude: round(a / n),
+      avg: round((c + a) / (2 * n))
+    };
+  }
+
   function resetCredit() {
     mem.credit = { score: 100, history: [] };
+    mem.reviews = [];
     write(CREDIT_KEY, mem.credit);
+    write(REVIEWS_KEY, mem.reviews);
     return mem.credit.score;
   }
 
@@ -144,6 +226,10 @@ const AppStore = (function () {
     getCreditScore,
     getCreditHistory,
     changeCredit,
+    calcReviewDelta,
+    addReview,
+    getReviewByTask,
+    getRatingSummary,
     resetCredit
   };
 })();

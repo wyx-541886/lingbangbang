@@ -40,6 +40,7 @@ const UI = (function () {
     m.className = 'modal-mask';
     m.innerHTML =
       '<div class="modal-box">' +
+        '<button class="modal-x" type="button" aria-label="关闭">&times;</button>' +
         '<div class="modal-title"></div>' +
         '<div class="modal-content"></div>' +
         '<div class="modal-btns"></div>' +
@@ -85,7 +86,9 @@ const UI = (function () {
     const showCancel = opts.showCancel !== false;
 
     modalEl.querySelector('.modal-title').textContent = title;
-    modalEl.querySelector('.modal-content').textContent = content;
+    const contentEl = modalEl.querySelector('.modal-content');
+    contentEl.textContent = content;
+    contentEl.classList.toggle('left', opts.align === 'left');
 
     const btns = modalEl.querySelector('.modal-btns');
     btns.innerHTML = '';
@@ -93,6 +96,14 @@ const UI = (function () {
     function close(v) {
       modalEl.classList.remove('show');
       if (opts.onClose) opts.onClose(v);
+    }
+
+    // 右上角关闭键：等同取消/关闭；自定义按钮弹窗不显示，避免与主操作混淆
+    const xEl = modalEl.querySelector('.modal-x');
+    if (xEl) {
+      const custom = Array.isArray(opts.buttons) && opts.buttons.length;
+      xEl.style.display = custom ? 'none' : 'flex';
+      xEl.onclick = function () { close(false); };
     }
 
     // 自定义按钮组：每项 { text, value, cls }，点按后回传对应 value
@@ -142,6 +153,152 @@ const UI = (function () {
     });
   }
 
+  /* ---------- 星级评分弹窗：发布者验收评分（五星制，支持半星） ---------- */
+  const STAR_LABELS = {
+    0: '未评分', 0.5: '极差', 1: '很差', 1.5: '差', 2: '较差',
+    2.5: '略欠', 3: '一般', 3.5: '良好', 4: '满意', 4.5: '优秀', 5: '极佳'
+  };
+  const RATE_DIMS = [
+    { key: 'completion', dim: '完成度', hint: '任务是否保质保量、交付结果是否到位' },
+    { key: 'attitude', dim: '服务态度', hint: '沟通配合、守时与礼貌程度' }
+  ];
+
+  let rateMaskEl = null;
+  let rateResolve = null;
+
+  function paintRateRow(row) {
+    const v = (row._hover > 0 ? row._hover : row._cur) || 0;
+    const fill = row.querySelector('.s-fill');
+    if (fill) fill.style.width = (v / 5 * 100) + '%';
+    const num = row.querySelector('.rp-num');
+    if (num) {
+      num.textContent = v ? (v + ' 星 · ' + STAR_LABELS[v]) : '未评分';
+      num.className = 'rp-num' + (v >= 4 ? ' high' : v <= 2.5 && v > 0 ? ' low' : '');
+    }
+  }
+
+  // 根据鼠标落点换算 0.5 步进的值（最左 0.5 星，最右 5 星）
+  function rateValueFromEvent(starsEl, e) {
+    if (!starsEl) return 0; // 防御：元素已被重建时不再换算
+    const rect = starsEl.getBoundingClientRect();
+    const unit = rect.width / 5;
+    const v = Math.round((e.clientX - rect.left) / unit * 2) / 2;
+    return Math.max(0.5, Math.min(5, v));
+  }
+
+  function rateRowHtml(d) {
+    return '<div class="rp-row" data-k="' + d.key + '">' +
+      '<div class="rp-head">' +
+        '<span class="rp-dim">' + d.dim + '</span>' +
+        '<span class="rp-num">未评分</span>' +
+      '</div>' +
+      '<div class="rp-stars">' +
+        '<span class="s-base" aria-hidden="true">★★★★★</span>' +
+        '<span class="s-fill" aria-hidden="true">★★★★★</span>' +
+      '</div>' +
+      '<div class="rp-hint">' + d.hint + '</div>' +
+    '</div>';
+  }
+
+  function buildRateMask() {
+    const m = document.createElement('div');
+    m.className = 'modal-mask rate-mask';
+    m.innerHTML =
+      '<div class="rate-panel">' +
+        '<div class="rp-title">发布者验收评分</div>' +
+        '<div class="rp-sub"></div>' +
+        '<div class="rp-body">' +
+          RATE_DIMS.map(rateRowHtml).join('') +
+          '<textarea class="rp-comment" maxlength="120" rows="2" placeholder="选填：给这次交付补充一句真实反馈"></textarea>' +
+        '</div>' +
+        '<div class="rp-tip"></div>' +
+        '<div class="modal-btns">' +
+          '<button type="button" class="modal-btn cancel" data-v="cancel">暂不评分</button>' +
+          '<button type="button" class="modal-btn" data-v="ok">提交评分</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(m);
+
+    // 遮罩点击关闭
+    m.addEventListener('click', function (e) {
+      if (e.target === m) closeRate(null);
+    });
+
+    const btns = m.querySelectorAll('.modal-btns button');
+    btns[0].addEventListener('click', function () { closeRate(null); });
+    btns[1].addEventListener('click', function () {
+      const get = function (k) {
+        const r = m.querySelector('.rp-row[data-k="' + k + '"]');
+        return r ? r._cur : 0;
+      };
+      const c = get('completion');
+      const a = get('attitude');
+      if (!c || !a) {
+        UI.toast('请先为完成度和服务态度各打一颗星');
+        return;
+      }
+      const comment = m.querySelector('.rp-comment').value.trim();
+      closeRate({ completion: c, attitude: a, comment: comment });
+    });
+
+    // 星星行：悬停预览半星、点击定值
+    m.querySelectorAll('.rp-row').forEach(function (row) {
+      row._cur = 0;
+      row._hover = 0;
+      const starsEl = row.querySelector('.rp-stars');
+      starsEl.addEventListener('mousemove', function (e) {
+        row._hover = rateValueFromEvent(starsEl, e);
+        paintRateRow(row);
+      });
+      starsEl.addEventListener('mouseleave', function () {
+        row._hover = 0;
+        paintRateRow(row);
+      });
+      starsEl.addEventListener('click', function (e) {
+        row._cur = rateValueFromEvent(starsEl, e);
+        row._hover = 0;
+        paintRateRow(row);
+      });
+    });
+    return m;
+  }
+
+  function closeRate(v) {
+    if (rateMaskEl) rateMaskEl.classList.remove('show');
+    const rs = rateResolve;
+    rateResolve = null;
+    if (rs) rs(v);
+  }
+
+  // info: { title, reward, gain }；resolves 为 {completion, attitude, comment} 或 null
+  function openRate(info) {
+    return new Promise(function (resolve) {
+      if (!rateMaskEl) rateMaskEl = buildRateMask();
+      rateResolve = resolve;
+      const m = rateMaskEl;
+
+      m.querySelectorAll('.rp-row').forEach(function (row) {
+        row._cur = 0;
+        row._hover = 0;
+        paintRateRow(row);
+      });
+      const ta = m.querySelector('.rp-comment');
+      if (ta) ta.value = '';
+      const sub = m.querySelector('.rp-sub');
+      if (sub) {
+        sub.textContent =
+          '任务「' + info.title + '」\n' +
+          '本单佣金 ' + info.reward + ' 积分，验收通过后接取者实得 ' + info.gain + ' 积分。' +
+          '请从两个维度为本次交付打星（支持半星），评分将公平换算为该次交付的信誉分。';
+      }
+      const tip = m.querySelector('.rp-tip');
+      if (tip) {
+        tip.textContent = '换算规则：以 3 星为公平基准，均星每高 0.25 星信誉 +1、每低 0.25 星信誉 -1，单次调整封顶 +5 / -5。';
+      }
+      m.classList.add('show');
+    });
+  }
+
   /* ---------- 背景瀑布流装饰 ---------- */
   const BG_SAMPLES = [
     { tag: '遛狗', title: '帮忙遛狗半小时', reward: 15, avatar: '王' },
@@ -188,5 +345,5 @@ const UI = (function () {
     });
   }
 
-  return { showLoading, hideLoading, toast, modal, confirm, choice, fillWaterfall };
+  return { showLoading, hideLoading, toast, modal, confirm, choice, openRate, fillWaterfall };
 })();

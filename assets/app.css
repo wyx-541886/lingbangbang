@@ -740,3 +740,211 @@
   .wf-col { width: 200px; max-width: 40vw; }
   .board-note { display: none; }
 }
+
+/* ===================== 交付评分系统：综合均星 / 评分统计 ===================== */
+.stat-rate { background: linear-gradient(160deg, rgba(255, 243, 210, 0.9), rgba(236, 196, 112, 0.45)); }
+
+.st-sub {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-light);
+}
+
+.sub-board-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-sub);
+  margin: 4px 0 12px;
+  padding-left: 10px;
+  border-left: 3px solid var(--accent);
+}
+
+/* 综合均星摘要条 */
+.rate-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 8px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid var(--line);
+}
+
+.rs-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(253, 244, 224, 0.55);
+}
+
+.rs-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rs-label { font-size: 12.5px; color: var(--text-sub); }
+
+.rs-num { font-size: 17px; font-weight: 800; color: var(--accent-deep); font-variant-numeric: tabular-nums; }
+
+.rs-stars {
+  position: relative;
+  display: block;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 3px;
+  white-space: nowrap;
+  color: #E7D9B8;
+  pointer-events: none;
+}
+
+.rs-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: #E8A33D;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.rs-cnt { grid-column: 1 / -1; text-align: center; font-size: 12px; color: var(--text-faint); }
+
+/* 信誉明细里的均星徽标 */
+.ci-star {
+  flex-shrink: 0;
+  min-width: 44px;
+  text-align: center;
+  padding: 4px 8px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #A06B16;
+  background: rgba(232, 163, 61, 0.16);
+}
+
+/* 已完成任务卡片的评分标记 */
+.done-meta { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.done-rate {
+  font-size: 12px;
+  font-weight: 700;
+  color: #A06B16;
+  padding: 7px 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(232, 163, 61, 0.14);
+  border: 1px solid rgba(196, 136, 42, 0.3);
+}
+
+/* ===================== 交付评分系统：验收评分弹窗 ===================== */
+.rate-mask .rate-panel {
+  width: min(540px, 92vw);
+  background: #FFFCF8;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(60, 40, 10, 0.32);
+  transform: scale(0.94) translateY(6px);
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rate-mask.show .rate-panel { transform: scale(1) translateY(0); }
+
+.rate-panel .rp-title {
+  padding: 22px 24px 4px;
+  font-size: 18px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--text-main);
+}
+
+.rp-sub {
+  margin: 4px 24px 0;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text-sub);
+  white-space: pre-line;
+  word-break: break-word;
+}
+
+.rp-body { padding: 16px 24px 4px; }
+
+.rp-row { margin-bottom: 18px; }
+
+.rp-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.rp-dim { font-size: 15px; font-weight: 800; color: var(--accent-deep); }
+
+.rp-num { font-size: 13px; font-weight: 700; color: var(--text-faint); }
+
+.rp-num.high { color: #B7791F; }
+.rp-num.low { color: #C4553F; }
+
+.rp-stars {
+  position: relative;
+  height: 42px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.s-base, .s-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 32px;
+  line-height: 42px;
+  letter-spacing: 6px;
+  white-space: nowrap;
+}
+
+.s-base { color: #E8DBBC; pointer-events: none; }
+.s-fill { color: #EFA63E; overflow: hidden; width: 0; text-shadow: 0 1px 1px rgba(255, 255, 255, 0.35); pointer-events: none; }
+
+.rp-hint { margin-top: 6px; font-size: 12px; color: var(--text-faint); }
+
+.rp-comment {
+  width: 100%;
+  border: 1px solid rgba(190, 158, 108, 0.32);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 11px 14px;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-main);
+  resize: none;
+  outline: none;
+}
+
+.rp-comment:focus {
+  border-color: rgba(196, 136, 42, 0.6);
+  box-shadow: 0 0 0 3px rgba(196, 136, 42, 0.1);
+}
+
+.rp-tip {
+  margin: 6px 24px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.rate-mask .modal-btns { border-top: 0.5px solid rgba(190, 158, 108, 0.32); }
+
+@media (max-width: 700px) {
+  .rate-mask .rate-panel { width: min(520px, 96vw); }
+  .rp-body, .rp-sub, .rp-tip { margin-left: 16px; margin-right: 16px; }
+  .rp-body { padding-left: 0; padding-right: 0; }
+  .s-base, .s-fill { font-size: 28px; }
+  .rate-summary { grid-template-columns: 1fr; }
+}

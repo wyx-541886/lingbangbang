@@ -28,13 +28,20 @@
 
   function cardHtml(t, withAction) {
     const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
-    let action = '<span class="done-tag">&#10003; 已完成</span>';
-    if (withAction) {
-      if (t.status === 'pending') {
-        action = '<button class="accept-btn" data-id="' + t.id + '">接取任务</button>';
-      } else if (t.status === 'doing') {
-        action = '<button class="deliver-btn" data-id="' + t.id + '">交付任务</button>';
+    let action;
+    if (withAction && t.status === 'pending') {
+      action = '<button class="accept-btn" data-id="' + t.id + '">接取任务</button>';
+    } else if (withAction && t.status === 'doing') {
+      action = '<button class="deliver-btn" data-id="' + t.id + '">交付任务</button>';
+    } else if (t.status === 'done') {
+      let rateTxt = '';
+      const rv = AppStore.getReviewByTask(t.id);
+      if (rv) {
+        rateTxt = '<span class="done-rate">&#9733; ' + rv.avg + ' 均星</span>';
       }
+      action = '<span class="done-meta"><span class="done-tag">&#10003; 已完成</span>' + rateTxt + '</span>';
+    } else {
+      action = '<span class="done-tag">待接取</span>';
     }
     return '<article class="task-card st-' + st.cls + '">' +
       '<div class="tc-head">' +
@@ -94,7 +101,7 @@
       content:
         '确定接取「' + t.title + '」吗？\n\n' +
         '本单悬赏佣金 ' + t.reward + ' 积分。为把善意传递给更多需要帮助的邻里，平台将从中提取 20%（' + settle.commission + ' 积分），汇入爱心公益池，专项用于关怀社区困难人群。\n\n' +
-        '接单后请认真按时交付：发布者满意将记一次好评（信誉 +2）；若敷衍、拖延的消极完成，信誉将被扣减。',
+        '接单后请按时认真交付：任务完成时，发布者将按「完成度 + 服务态度」为你打星验收（五星制、支持半星），星级会公平换算为信誉分增减。',
       confirmText: '接取',
       cancelText: '再想想'
     });
@@ -116,27 +123,23 @@
     }, 300);
   }
 
-  /* ===================== 交付任务（发布者验收 → 信誉结算） ===================== */
+  /* ===================== 交付任务（发布者五星评分验收 → 信誉结算） ===================== */
   async function deliverTask(id) {
     const tasks = AppStore.getTasks();
     const t = tasks.find(function (x) { return x.id === id; });
     if (!t || t.status !== 'doing') return;
 
     const settle = AppStore.calcTaskReward(t.reward);
-    const quality = await UI.choice({
-      title: '交付任务',
-      content:
-        '「' + t.title + '」已由你完成，请选择本次交付表现，作为发布者验收结果：\n\n' +
-        '认真完成 → 邻里满意，信誉 +2，实得 ' + settle.gain + ' 积分\n' +
-        '消极完成 → 敷衍/拖延交付，信誉 -5（本单积分仍照常结算）',
-      buttons: [
-        { text: '认真完成 · 邻里满意', value: 'good' },
-        { text: '消极完成 · 敷衍交付', value: 'bad', cls: 'cancel' }
-      ]
-    });
-    if (!quality) return;
 
-    UI.showLoading('正在结算...');
+    // 交付 → 发布者验收评分（完成度 + 服务态度，五星半星制）
+    const rating = await UI.openRate({
+      title: t.title,
+      reward: t.reward,
+      gain: settle.gain
+    });
+    if (!rating) return;
+
+    UI.showLoading('正在验收结算...');
     setTimeout(function () {
       const list = AppStore.getTasks();
       const target = list.find(function (x) { return x.id === id; });
@@ -149,22 +152,26 @@
 
       const result = AppStore.settleTaskReward(t.reward);
       AppStore.changePoints(result.gain);
-      if (quality === 'good') {
-        AppStore.changeCredit(2, '任务《' + t.title + '》认真按时交付，获邻里好评');
-      } else {
-        AppStore.changeCredit(-5, '任务《' + t.title + '》被发布者反馈敷衍、消极完成');
-      }
+      const rec = AppStore.addReview({
+        taskId: t.id,
+        taskTitle: t.title,
+        completion: rating.completion,
+        attitude: rating.attitude,
+        comment: rating.comment
+      });
 
       UI.hideLoading();
       syncPoints();
       renderBoard();
       renderMe();
-      UI.toast(
-        quality === 'good'
-          ? '交付成功 · 信誉 +2 · 爱心 +' + result.gain + ' 积分'
-          : '已结算 · 本次消极交付，信誉 -5',
-        quality === 'good' ? 'success' : undefined
-      );
+      const d = rec.delta;
+      if (d > 0) {
+        UI.toast('验收完成 · 实得 ' + result.gain + ' 积分 · 信誉 +' + d, 'success');
+      } else if (d < 0) {
+        UI.toast('验收完成 · 实得 ' + result.gain + ' 积分 · 信誉 ' + d);
+      } else {
+        UI.toast('验收完成 · 实得 ' + result.gain + ' 积分 · 信誉无变动', 'success');
+      }
     }, 300);
   }
 
@@ -262,12 +269,54 @@
     if (emptyEl) emptyEl.hidden = true;
     listEl.innerHTML = log.slice(0, 12).map(function (r) {
       const up = r.delta > 0;
+      const star = typeof r.starAvg === 'number' ? '<span class="ci-star">&#9733; ' + r.starAvg + '</span>' : '';
       return '<li class="credit-item">' +
         '<span class="ci-delta ' + (up ? 'up' : 'down') + '">' + (up ? '+' : '') + r.delta + '</span>' +
+        star +
         '<span class="ci-tx">' + escHtml(r.text) + '</span>' +
         '<span class="ci-time">' + escHtml(r.time) + '</span>' +
       '</li>';
     }).join('');
+  }
+
+  /* ===================== 综合评分统计 ===================== */
+  // 填充星星进度：value / 5 决定金色填充宽度
+  function paintStars(fillId, value) {
+    const el = $(fillId);
+    if (el) el.style.width = (value / 5 * 100) + '%';
+  }
+
+  function fmtNum(x) {
+    return (Math.round(x * 100) / 100).toString();
+  }
+
+  function renderRatingSummary() {
+    const sum = AppStore.getRatingSummary();
+    const box = $('rateSummary');
+    const meRate = $('meRate');
+    const meRateCnt = $('meRateCnt');
+
+    if (!sum) {
+      if (box) box.hidden = true;
+      if (meRate) meRate.textContent = '--';
+      if (meRateCnt) meRateCnt.textContent = '暂无评分';
+      return;
+    }
+    if (box) {
+      box.hidden = false;
+      const set = function (fillId, numId, v) {
+        paintStars(fillId, v);
+        const num = $(numId);
+        if (num) num.textContent = fmtNum(v);
+      };
+      set('rsFillComp', 'rsNumComp', sum.completion);
+      set('rsFillAtt', 'rsNumAtt', sum.attitude);
+      set('rsFillAvg', 'rsNumAvg', sum.avg);
+      const cnt = $('rsCnt');
+      if (cnt) cnt.textContent = '累计 ' + sum.count + ' 次交付验收';
+    }
+    if (meRate) meRate.textContent = fmtNum(sum.avg);
+    if (meRateCnt) meRateCnt.textContent = '已积累 ' + sum.count + ' 次评价';
   }
 
   function renderMe() {
@@ -275,6 +324,7 @@
     $('mePub').textContent = tasks.length;
     $('meDone').textContent = tasks.filter(function (t) { return t.status === 'done'; }).length;
     renderCredit();
+    renderRatingSummary();
     renderList($('meTaskGrid'), tasks.slice(0, 12), $('meEmpty'), true);
   }
 
@@ -303,7 +353,7 @@
     } else if (act === 'resetCredit') {
       const ok = await UI.confirm({
         title: '重置信誉分',
-        content: '将信誉恢复为初始的 100 并清空信誉记录，确定吗？',
+        content: '将信誉恢复为初始的 100，并清空信誉记录与全部历史评分，确定吗？',
         confirmText: '重置'
       });
       if (!ok) return;
@@ -316,6 +366,29 @@
         UI.toast('信誉已重置', 'success');
         state.acting = false;
       }, 300);
+    } else if (act === 'creditRules') {
+      UI.modal({
+        title: '信誉奖惩制度',
+        content:
+          '一、评分方式\n' +
+          '每次任务交付后，发布者对交付者按两个维度打星（五星制，支持半星）：\n' +
+          '· 完成度：任务是否保质保量、结果是否到位\n' +
+          '· 服务态度：沟通配合、守时与礼貌程度\n\n' +
+          '二、换算规则（单次）\n' +
+          '两维平均得"本次均星"，以 3 星为公平基准：均星每高 0.25 星信誉 +1，每低 0.25 星信誉 -1（约合每差 1 星 ±4 分）。\n' +
+          '速查：5★→+5 · 4.5★→+5 · 4★→+4 · 3.5★→+2 · 3★→0 · 2.5★→-2 · 2★→-4 · ≤1.5★→-5\n\n' +
+          '三、公平保护\n' +
+          '1. 单次封顶：一次评价最多 +5、最多 -5，防止信誉暴涨暴跌，让评分回归真实；\n' +
+          '2. 一次一评：每笔任务只能验收一次，交付即评，没有补分空间；\n' +
+          '3. 长期累计：信誉来自多笔交付的综合，零星高分无法维持，杜绝刷分。\n\n' +
+          '四、等级影响（满分 100）\n' +
+          '· 90-100 邻里之星\n· 75-89 靠谱好邻居\n· 60-74 信用一般\n· 60 以下 待改进\n\n' +
+          '分数长期低于 60 的邻里将被标注为"待改进"，影响后续接单机会。\n\n' +
+          '公益互助基于信任。评分不是惩罚工具，而是让每一次善意与尽责，都积累成看得见的信用。',
+        showCancel: false,
+        confirmText: '知道了',
+        align: 'left'
+      });
     } else if (act === 'clearTasks') {
       const ok = await UI.confirm({
         title: '清空任务',

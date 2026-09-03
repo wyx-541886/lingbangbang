@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>邻帮帮 · 邻里互助任务平台</title>
-<link rel="stylesheet" href="assets/base.css">
-<link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="assets/base.css?v=20260903c">
+<link rel="stylesheet" href="assets/app.css?v=20260903c">
 </head>
 <body>
 
@@ -138,6 +138,11 @@
               <span class="st-big" id="meCredit">100</span>
               <span class="st-badge" id="creditBadge">邻里之星</span>
             </div>
+            <div class="stat stat-rate">
+              <span class="st-label">综合均星</span>
+              <span class="st-big" id="meRate">--</span>
+              <span class="st-sub" id="meRateCnt">暂无评分</span>
+            </div>
             <div class="stat">
               <span class="st-label">发布任务</span>
               <span class="st-value" id="mePub">0</span>
@@ -149,9 +154,25 @@
           </div>
           <div class="credit-pane">
             <div class="credit-head">
-              <h3 class="me-board-title credit-title">信誉记录</h3>
-              <p class="credit-tip">认真完成接取的任务并按时交付，邻里好评 +2 信誉；敷衍、拖延的消极完成将被差评，信誉 -5。满分 100，长期低于 60 将影响后续接单。</p>
+              <h3 class="me-board-title credit-title">信誉档案</h3>
+              <p class="credit-tip">每次任务交付后由发布者验收评分：按「完成度 + 服务态度」各打五星（支持半星），以 3 星为基准换算信誉，单次封顶 ±5，公平可查。</p>
             </div>
+            <div class="rate-summary" id="rateSummary" hidden>
+              <div class="rs-cell">
+                <div class="rs-head"><span class="rs-label">完成度均星</span><span class="rs-num" id="rsNumComp">--</span></div>
+                <div class="rs-stars"><span class="rs-fill" id="rsFillComp">★★★★★</span>★★★★★</div>
+              </div>
+              <div class="rs-cell">
+                <div class="rs-head"><span class="rs-label">服务态度均星</span><span class="rs-num" id="rsNumAtt">--</span></div>
+                <div class="rs-stars"><span class="rs-fill" id="rsFillAtt">★★★★★</span>★★★★★</div>
+              </div>
+              <div class="rs-cell">
+                <div class="rs-head"><span class="rs-label">综合均星</span><span class="rs-num" id="rsNumAvg">--</span></div>
+                <div class="rs-stars"><span class="rs-fill" id="rsFillAvg">★★★★★</span>★★★★★</div>
+              </div>
+              <span class="rs-cnt" id="rsCnt"></span>
+            </div>
+            <h4 class="sub-board-title">信誉记录</h4>
             <ul class="credit-list" id="creditList"></ul>
             <div class="empty small" id="creditEmpty" hidden>
               <p class="empty-tx">暂无信誉变动</p>
@@ -181,7 +202,11 @@
               <span class="cell-arrow">&#8250;</span>
             </button>
             <button class="cell" data-act="resetCredit">
-              <span class="cell-tx"><b>重置信誉分</b><i>信誉恢复为初始的 100 并清空记录</i></span>
+              <span class="cell-tx"><b>重置信誉分</b><i>信誉恢复为初始的 100 并清空评分记录</i></span>
+              <span class="cell-arrow">&#8250;</span>
+            </button>
+            <button class="cell" data-act="creditRules">
+              <span class="cell-tx"><b>查看信誉奖惩规则</b><i>评分如何公平换算信誉分</i></span>
               <span class="cell-arrow">&#8250;</span>
             </button>
             <button class="cell" data-act="clearTasks">
@@ -202,8 +227,8 @@
     <footer class="foot">数据保存在当前浏览器（localStorage）· 与微信小程序互不相通</footer>
   </div>
 
-  <script src="assets/store.js"></script>
-  <script src="assets/ui.js"></script>
-  <script src="assets/main.js"></script>
+  <script src="assets/store.js?v=20260903c"></script>
+  <script src="assets/ui.js?v=20260903c"></script>
+  <script src="assets/main.js?v=20260903c"></script>
 </body>
 </html>

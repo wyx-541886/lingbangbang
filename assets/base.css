@@ -254,6 +254,7 @@ button:active { transform: scale(0.97); }
 .modal-mask.show { opacity: 1; visibility: visible; }
 
 .modal-box {
+  position: relative;
   width: min(360px, 84vw);
   background: #FFFCF8;
   border-radius: 18px;
@@ -264,6 +265,26 @@ button:active { transform: scale(0.97); }
 }
 
 .modal-mask.show .modal-box { transform: scale(1) translateY(0); }
+
+/* 右上角关闭键（浏览型内容弹出后用于退出） */
+.modal-x {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  color: rgba(120, 96, 56, 0.55);
+  background: transparent;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.modal-x:hover { background: rgba(190, 158, 108, 0.15); color: var(--accent); }
 
 .modal-title {
   padding: 24px 20px 6px;
@@ -281,7 +302,17 @@ button:active { transform: scale(0.97); }
   line-height: 1.7;
   word-break: break-word;
   white-space: pre-line; /* 支持 \n 分段，便于多行说明 */
+  max-height: min(56vh, 400px); /* 长内容超高时可滚动，底部按钮始终可见 */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
+
+/* 浏览型长文案：左对齐更易读 */
+.modal-content.left { text-align: left; }
+
+.modal-content::-webkit-scrollbar { width: 4px; }
+.modal-content::-webkit-scrollbar-track { background: transparent; }
+.modal-content::-webkit-scrollbar-thumb { background: rgba(190, 158, 108, 0.45); border-radius: 4px; }
 
 .modal-btns { display: flex; border-top: 0.5px solid rgba(190, 158, 108, 0.32); }
 
