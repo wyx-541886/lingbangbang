@@ -1299,3 +1299,208 @@
   .ap-task, .ap-reason { margin-left: 16px; margin-right: 16px; }
   .ap-tip { margin-left: 16px; margin-right: 16px; }
 }
+
+/* ===================== 五级志愿荣誉机制 ===================== */
+/* 个人信息区的称号带 */
+.pf-honor {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 700;
+  color: #A06B16;
+  background: linear-gradient(90deg, rgba(255, 240, 200, 0.65), rgba(236, 196, 112, 0.22));
+  border: 1px solid rgba(196, 136, 42, 0.3);
+}
+
+/* 荣誉档案主卡 */
+.honor-pane {
+  margin: 26px 0 4px;
+  padding: 22px 24px 20px;
+  border-radius: 20px;
+  background: linear-gradient(150deg, #FFFDF6, #FFF6E0 55%, #FBEBC6);
+  border: 1px solid rgba(196, 152, 62, 0.28);
+  box-shadow: 0 10px 26px rgba(140, 105, 45, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.honor-main { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+.honor-medal {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 27px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 6px 16px rgba(90, 70, 30, 0.22), inset 0 2px 6px rgba(255, 255, 255, 0.4);
+}
+.honor-medal.h1 { background: linear-gradient(145deg, #A8C5A0, #6E9A5E); }
+.honor-medal.h2 { background: linear-gradient(145deg, #93C4D6, #4E87A6); }
+.honor-medal.h3 { background: linear-gradient(145deg, #F0D084, #C99B3C); }
+.honor-medal.h4 { background: linear-gradient(145deg, #F2B877, #DE8A3D); }
+.honor-medal.h5 { background: linear-gradient(145deg, #D9A05C, #A05A2C); }
+
+.honor-tx { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.honor-name { font-size: 20px; font-weight: 800; color: #7A4E1D; }
+.honor-tag { font-size: 12.5px; color: #8A6A22; }
+
+.honor-lv {
+  font-size: 12px;
+  font-weight: 700;
+  color: #A5753A;
+  border: 1px solid rgba(196, 152, 62, 0.4);
+  background: rgba(255, 255, 255, 0.6);
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.honor-track { display: flex; align-items: center; gap: 14px; margin-top: 16px; }
+.honor-prog {
+  flex: 1;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(190, 158, 108, 0.22);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(120, 90, 40, 0.15);
+}
+.honor-prog i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--gold-grad);
+  box-shadow: 0 0 8px rgba(196, 136, 42, 0.45);
+  transition: width 0.5s ease;
+}
+.honor-pts { font-size: 17px; color: #7A4E1D; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.honor-pts u { font-size: 12px; color: #A5753A; font-weight: 600; text-decoration: none; }
+
+.honor-note { margin: 10px 2px 2px; font-size: 12px; color: #9A7A44; line-height: 1.65; }
+
+.honor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+.hm-cell {
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(190, 158, 108, 0.25);
+  box-shadow: 0 3px 10px rgba(140, 105, 45, 0.06);
+}
+.hm-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.hm-head span { font-size: 12px; color: #8A6A22; font-weight: 600; }
+.hm-head b { font-size: 19px; color: #7A4E1D; font-variant-numeric: tabular-nums; }
+.hm-head b u { font-size: 11px; color: #A5753A; font-weight: 600; margin-left: 2px; text-decoration: none; }
+.hm-bar { display: block; height: 6px; border-radius: 999px; background: rgba(190, 158, 108, 0.18); margin-top: 8px; overflow: hidden; }
+.hm-bar i { display: block; height: 100%; background: linear-gradient(90deg, #E6BE6E, #D99A3E); border-radius: 999px; }
+.hm-src { margin-top: 6px; font-size: 11.5px; color: #9A7A44; line-height: 1.45; word-break: break-all; }
+
+.honor-detail-btn {
+  margin-top: 16px;
+  width: 100%;
+  padding: 11px 0;
+  border-radius: 999px;
+  border: 1px solid rgba(196, 136, 42, 0.55);
+  background: linear-gradient(90deg, rgba(255, 248, 230, 0.9), rgba(243, 222, 168, 0.7));
+  color: #7A4E1D;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.honor-detail-btn:hover { box-shadow: 0 6px 14px rgba(186, 133, 44, 0.25); transform: translateY(-1px); }
+
+/* 详情弹窗：荣誉绑定记录 */
+.honor-detail { text-align: left; }
+
+.hd-levels { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 12px; }
+.hd-lv {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border-radius: 12px;
+  background: rgba(190, 158, 108, 0.1);
+  border: 1px solid transparent;
+  text-align: center;
+}
+.hd-lv i {
+  font-style: normal;
+  width: 34px;
+  height: 34px;
+  line-height: 34px;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  background: #C9B689;
+}
+.hd-lv b { font-size: 11.5px; color: #7A5B2E; }
+.hd-lv u { text-decoration: none; font-size: 10.5px; color: #A5753A; }
+.hd-lv.cur { border-color: rgba(196, 136, 42, 0.6); background: #FFF6DE; box-shadow: 0 4px 10px rgba(186, 133, 44, 0.18); }
+.hd-lv.cur.h1 i { background: linear-gradient(145deg, #A8C5A0, #6E9A5E); }
+.hd-lv.cur.h2 i { background: linear-gradient(145deg, #93C4D6, #4E87A6); }
+.hd-lv.cur.h3 i { background: linear-gradient(145deg, #F0D084, #C99B3C); }
+.hd-lv.cur.h4 i { background: linear-gradient(145deg, #F2B877, #DE8A3D); }
+.hd-lv.cur.h5 i { background: linear-gradient(145deg, #D9A05C, #A05A2C); }
+
+.hd-cur {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(120deg, rgba(255, 240, 200, 0.5), rgba(236, 196, 112, 0.15));
+  border: 1px dashed rgba(196, 152, 62, 0.5);
+}
+.hd-cur b { font-size: 15px; color: #7A4E1D; }
+.hd-cur span { margin-left: 8px; font-size: 12px; color: #8A6A22; }
+
+.hd-block { margin: 2px 0 12px; }
+.hd-block h5 { margin: 0 0 2px; font-size: 14px; color: #7A4E1D; font-weight: 800; }
+.hd-src { margin: 0 0 8px; font-size: 12px; line-height: 1.7; color: #9A7A44; }
+
+.hd-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.hd-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 253, 247, 0.85);
+  border: 1px solid rgba(190, 158, 108, 0.22);
+  font-size: 12.5px;
+  color: #6D5631;
+  line-height: 1.55;
+}
+.hd-list li b {
+  flex-shrink: 0;
+  min-width: 56px;
+  text-align: center;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.hd-list li b.ok { color: #3E6B2F; background: rgba(120, 160, 90, 0.16); }
+.hd-list li b.bad { color: #B34B35; background: rgba(196, 85, 63, 0.12); }
+.hd-list li u { margin-left: auto; flex-shrink: 0; text-decoration: none; font-size: 11px; color: #B39B6B; white-space: nowrap; }
+.hd-list li .hd-muted { font-style: normal; color: #A5753A; background: rgba(190, 158, 108, 0.14); padding: 0 6px; border-radius: 6px; font-size: 11px; }
+.hd-list li.muted { color: #A99B7E; background: transparent; border-style: dashed; }
+
+@media (max-width: 700px) {
+  .honor-pane { padding: 18px 16px; }
+  .honor-medal { width: 58px; height: 58px; font-size: 22px; }
+  .honor-name { font-size: 17px; }
+  .honor-lv { margin-left: auto; }
+  .hd-levels { gap: 4px; }
+  .hd-lv b { font-size: 10px; }
+  .hd-lv u { font-size: 9.5px; }
+  .hd-list li { flex-wrap: wrap; }
+  .hd-list li u { width: 100%; margin-left: 64px; white-space: normal; }
+}

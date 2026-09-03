@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>邻帮帮 · 邻里互助任务平台</title>
-<link rel="stylesheet" href="assets/base.css?v=20260903g">
-<link rel="stylesheet" href="assets/app.css?v=20260903g">
+<link rel="stylesheet" href="assets/base.css?v=20260903h">
+<link rel="stylesheet" href="assets/app.css?v=20260903h">
 </head>
 <body>
 
@@ -130,6 +130,7 @@
             <div class="pf-info">
               <div class="pf-name">邻帮帮用户</div>
               <div class="pf-sub">社区好邻居</div>
+              <div class="pf-honor" id="pfTitle"></div>
             </div>
           </div>
           <div class="stats">
@@ -156,6 +157,26 @@
               <span class="st-value" id="meDone">0</span>
             </div>
           </div>
+
+          <!-- 五级志愿荣誉：头衔与等级全部绑定真实记录 -->
+          <div class="honor-pane">
+            <div class="honor-main">
+              <div class="honor-medal h1" id="honorMedal"><span id="honorMark">萌</span></div>
+              <div class="honor-tx">
+                <b class="honor-name" id="honorName">萌芽志愿者</b>
+                <span class="honor-tag" id="honorTag">善意的种子，正在发芽</span>
+              </div>
+              <span class="honor-lv" id="honorLv">Lv.1 · 五级志愿荣誉</span>
+            </div>
+            <div class="honor-track">
+              <span class="honor-prog"><i id="honorFill"></i></span>
+              <b class="honor-pts" id="honorPts">0<u>/ 100</u></b>
+            </div>
+            <p class="honor-note" id="honorNote">由信誉分、交付质量与数量、累计实得积分综合评定 · 每个分值都绑定可查的真实记录</p>
+            <div class="honor-grid" id="honorGrid"></div>
+            <button type="button" class="honor-detail-btn" id="btnHonorDetail">查看荣誉绑定记录</button>
+          </div>
+
           <div class="credit-pane">
             <div class="credit-head">
               <h3 class="me-board-title credit-title">信誉档案</h3>
@@ -251,8 +272,8 @@
     <footer class="foot">数据保存在当前浏览器（localStorage）· 与微信小程序互不相通</footer>
   </div>
 
-  <script src="assets/store.js?v=20260903g"></script>
-  <script src="assets/ui.js?v=20260903g"></script>
-  <script src="assets/main.js?v=20260903g"></script>
+  <script src="assets/store.js?v=20260903h"></script>
+  <script src="assets/ui.js?v=20260903h"></script>
+  <script src="assets/main.js?v=20260903h"></script>
 </body>
 </html>

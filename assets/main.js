@@ -340,7 +340,172 @@
     $('meDone').textContent = tasks.filter(function (t) { return t.status === 'done'; }).length;
     renderCredit();
     renderRatingSummary();
+    renderHonor();
     renderList($('meTaskGrid'), tasks.slice(0, 12), $('meEmpty'), true, true);
+  }
+
+  /* ===================== 五级志愿荣誉机制 ===================== */
+  // 头衔绑定真实记录：荣誉值 = 信誉贡献(0~28) + 交付数量(0~22) + 验收质量(0~26) + 实得积分(0~24)，满分 100
+  const HONOR_LEVELS = [
+    { need: 0,  name: '萌芽志愿者',   tag: '善意的种子，正在发芽', mark: '萌' },
+    { need: 30, name: '热心志愿者',   tag: '邻里间越来越熟的搭把手', mark: '热' },
+    { need: 55, name: '口碑志愿者',   tag: '认真交付攒出的社区口碑', mark: '口' },
+    { need: 75, name: '金牌志愿之星', tag: '社区里最靠谱的担当', mark: '金' },
+    { need: 90, name: '功勋志愿大使', tag: '把公益过成日常的社区之光', mark: '功' }
+  ];
+  const HONOR_CAP = { credit: 28, done: 22, rate: 26, earn: 24 }; // 合计 100
+  const HONOR_DONE_LADDER = [[0, 0], [1, 4], [2, 6], [3, 8], [4, 10], [5, 12], [6, 14], [7, 15], [9, 17], [12, 19], [16, 21], [20, 22]];
+  const HONOR_EARN_LADDER = [[0, 0], [5, 3], [12, 6], [25, 10], [45, 13], [70, 16], [100, 19], [150, 22], [200, 24]];
+
+  // 档位计分：取不超过实际值的最高档积分
+  function ladderPts(ladder, val) {
+    let pts = 0;
+    for (let i = 0; i < ladder.length; i += 1) {
+      if (val >= ladder[i][0]) pts = ladder[i][1];
+    }
+    return pts;
+  }
+
+  function honorLevel(honor) {
+    let lv = HONOR_LEVELS[0];
+    for (let i = 0; i < HONOR_LEVELS.length; i += 1) {
+      if (honor >= HONOR_LEVELS[i].need) lv = HONOR_LEVELS[i];
+    }
+    return lv;
+  }
+
+  // 依据真实记录计算全部荣誉维度
+  function computeHonor() {
+    const creditScore = AppStore.getCreditScore();
+    const sum = AppStore.getRatingSummary();
+    const done = AppStore.getTasks().filter(function (t) { return t.status === 'done'; });
+    const doneCount = done.length;
+    let earn = 0;
+    done.forEach(function (t) { earn += AppStore.calcTaskReward(t.reward).gain; });
+
+    const parts = {
+      credit: Math.round(creditScore / 100 * HONOR_CAP.credit),
+      done: ladderPts(HONOR_DONE_LADDER, doneCount),
+      rate: (sum && sum.count > 0) ? Math.min(HONOR_CAP.rate, Math.round(sum.avg / 5 * HONOR_CAP.rate)) : 0,
+      earn: ladderPts(HONOR_EARN_LADDER, earn)
+    };
+    const honor = Math.min(100, parts.credit + parts.done + parts.rate + parts.earn);
+    const level = honorLevel(honor);
+    let next = null;
+    for (let i = 0; i < HONOR_LEVELS.length; i += 1) {
+      if (honor < HONOR_LEVELS[i].need) { next = HONOR_LEVELS[i]; break; }
+    }
+    return { creditScore: creditScore, sum: sum, done: done, doneCount: doneCount, earn: earn, parts: parts, honor: honor, level: level, next: next, levelIdx: Math.max(0, HONOR_LEVELS.indexOf(level)) };
+  }
+
+  function renderHonor() {
+    const h = computeHonor();
+    const li = h.levelIdx + 1;
+
+    const markEl = $('honorMark');
+    const medal = $('honorMedal');
+    if (medal) medal.className = 'honor-medal h' + li;
+    if (markEl) markEl.textContent = h.level.mark;
+
+    const nameEl = $('honorName');
+    if (nameEl) nameEl.textContent = h.level.name;
+    const tagEl = $('honorTag');
+    if (tagEl) tagEl.textContent = h.level.tag;
+    const lvEl = $('honorLv');
+    if (lvEl) lvEl.textContent = 'Lv.' + li + ' · 五级志愿荣誉';
+    const fillEl = $('honorFill');
+    if (fillEl) fillEl.style.width = h.honor + '%';
+    const ptsEl = $('honorPts');
+    if (ptsEl) {
+      ptsEl.innerHTML = h.honor + '<u>/ 100</u>';
+    }
+    const noteEl = $('honorNote');
+    if (noteEl) {
+      noteEl.textContent = h.next
+        ? '当前荣誉 ' + h.honor + ' / 100 · 距「' + h.next.name + '」还差 ' + (h.next.need - h.honor) + ' 点'
+        : '当前荣誉 ' + h.honor + ' / 100 · 已登顶五级志愿荣誉，感谢你让社区更温暖';
+    }
+    const pfEl = $('pfTitle');
+    if (pfEl) pfEl.textContent = '志愿称号 · ' + h.level.name;
+
+    const grid = $('honorGrid');
+    if (!grid) return;
+    const s = h.sum;
+    const metric = function (k, pts, cap, desc) {
+      const pct = Math.min(100, Math.round(pts / cap * 100));
+      return '<div class="hm-cell">' +
+        '<div class="hm-head"><span>' + k + '</span><b>' + pts + '<u>/ ' + cap + '</u></b></div>' +
+        '<span class="hm-bar"><i style="width:' + pct + '%"></i></span>' +
+        '<p class="hm-src">' + desc + '</p>' +
+      '</div>';
+    };
+    grid.innerHTML =
+      metric('信誉贡献', h.parts.credit, HONOR_CAP.credit, '信誉分 ' + h.creditScore + ' / 100') +
+      metric('交付数量', h.parts.done, HONOR_CAP.done, '已完成交付 ' + h.doneCount + ' 笔') +
+      metric('验收质量', h.parts.rate, HONOR_CAP.rate, s && s.count ? '综合均星 ' + fmtNum(s.avg) + '（' + s.count + ' 次评价）' : '暂无验收评价') +
+      metric('实得积分', h.parts.earn, HONOR_CAP.earn, '累计实得 ' + h.earn + ' 积分');
+  }
+
+  function honorBlock(title, source, items) {
+    return '<div class="hd-block">' +
+      '<h5>' + title + '</h5>' +
+      '<p class="hd-src">' + source + '</p>' +
+      (items ? '<ul class="hd-list">' + items + '</ul>' : '') +
+    '</div>';
+  }
+
+  // “查看荣誉绑定记录”：把每一维分值背后的真实流水逐条摊开
+  function openHonorDetail() {
+    const h = computeHonor();
+    const logs = AppStore.getCreditHistory();
+    const reviews = AppStore.getReviews();
+    const li = h.levelIdx + 1;
+
+    const creditItems = logs.slice(0, 10).map(function (r) {
+      return '<li><b class="' + (r.delta > 0 ? 'ok' : 'bad') + '">' + (r.delta > 0 ? '+' : '') + r.delta + '</b>' +
+        escHtml(r.text) + '<u>' + escHtml(r.time) + '</u></li>';
+    }).join('');
+
+    const doneItems = h.done.slice(0, 12).map(function (t) {
+      const g = AppStore.calcTaskReward(t.reward).gain;
+      return '<li><b class="ok">实得 +' + g + '</b>' + escHtml(t.title) + '（悬赏 ' + t.reward + '）<u>' + escHtml(t.createTime) + '</u></li>';
+    }).join('');
+
+    const reviewItems = reviews.slice(0, 12).map(function (r) {
+      const canceled = r.appealStatus === 'upheld';
+      return '<li><b class="' + (r.delta < 0 && !canceled ? 'bad' : 'ok') + '">' + (r.delta > 0 ? '+' : '') + r.delta + '</b>' +
+        '《' + escHtml(r.taskTitle) + '》均星 ' + r.avg + '（完成度 ' + r.completion + ' · 态度 ' + r.attitude + '）' +
+        (canceled ? '<em class="hd-muted">评审已撤销</em>' : '') +
+        '<u>' + escHtml(r.time) + '</u></li>';
+    }).join('');
+
+    const sum = h.sum;
+    const html =
+      '<div class="honor-detail">' +
+        '<div class="hd-levels">' +
+          HONOR_LEVELS.map(function (lv, i) {
+            return '<span class="hd-lv' + (i === li - 1 ? ' cur h' + li : '') + '">' +
+              '<i>' + lv.mark + '</i><b>' + lv.name + '</b><u>' + lv.need + ' 点起</u></span>';
+          }).join('') +
+        '</div>' +
+        '<div class="hd-cur"><b>当前志愿称号：' + h.level.name + '</b>' +
+          '<span>荣誉值 ' + h.honor + ' / 100' + (h.next ? ' · 距「' + h.next.name + '」还差 ' + (h.next.need - h.honor) + ' 点' : ' · 已登顶') + '</span></div>' +
+        honorBlock('① 信誉贡献　+' + h.parts.credit + ' / ' + HONOR_CAP.credit,
+          '当前信誉分 ' + h.creditScore + ' / 100，贡献点 = 信誉分 / 100 × ' + HONOR_CAP.credit,
+          creditItems || '<li class="muted">暂无信誉变动——认真完成一单、收获好评后，这里会留下第一笔记录</li>') +
+        honorBlock('② 交付数量　+' + h.parts.done + ' / ' + HONOR_CAP.done,
+          '已完成交付 ' + h.doneCount + ' 笔（1 笔 +4 · 3 笔 +8 · 7 笔 +15 · 12 笔 +19 · 20 笔封顶 +22）',
+          doneItems || '<li class="muted">还没有交付记录</li>') +
+        honorBlock('③ 验收质量　+' + h.parts.rate + ' / ' + HONOR_CAP.rate,
+          sum && sum.count
+            ? '有效评价 ' + sum.count + ' 笔 · 综合均星 ' + fmtNum(sum.avg) + '，质量点 = 均星 / 5 × ' + HONOR_CAP.rate + '（被评审撤销的差评不计入）'
+            : '暂无有效验收评价，交付后由发布者打星即可积累',
+          reviewItems || '<li class="muted">暂无验收评价</li>') +
+        honorBlock('④ 累计实得积分　+' + h.parts.earn + ' / ' + HONOR_CAP.earn,
+          '累计实得 ' + h.earn + ' 积分（25 分 +10 · 70 分 +16 · 150 分 +22 · 200 分封顶 +24），明细见②每笔「实得」',
+          '') +
+      '</div>';
+    UI.modal({ title: '志愿荣誉 · 绑定记录', html: html, showCancel: false, confirmText: '知道了', align: 'left' });
   }
 
   /* ===================== 申诉 & 大众评审团 ===================== */
@@ -716,6 +881,10 @@
     $('pubDesc').addEventListener('input', function () {
       $('pubDescCount').textContent = $('pubDesc').value.length + ' / 200';
     });
+
+    // 志愿荣誉：查看绑定记录
+    const hdBtn = $('btnHonorDetail');
+    if (hdBtn) hdBtn.addEventListener('click', openHonorDetail);
   }
 
   /* ===================== 启动 ===================== */

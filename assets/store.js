@@ -194,6 +194,9 @@ const AppStore = (function () {
     return rec;
   }
 
+  // 全部验收评分记录（含被评审撤销的，调用方自行过滤展示）
+  function getReviews() { return mem.reviews; }
+
   // 某笔任务是否已有验收评分
   function getReviewByTask(taskId) {
     const id = String(taskId == null ? '' : taskId);
@@ -359,6 +362,7 @@ const AppStore = (function () {
     calcReviewDelta,
     addReview,
     getReviewByTask,
+    getReviews,
     getRatingSummary,
     resetCredit,
     getAppeals,

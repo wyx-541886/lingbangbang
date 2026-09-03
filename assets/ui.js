@@ -87,7 +87,8 @@ const UI = (function () {
 
     modalEl.querySelector('.modal-title').textContent = title;
     const contentEl = modalEl.querySelector('.modal-content');
-    contentEl.textContent = content;
+    if (opts.html) contentEl.innerHTML = opts.html; // 富文本内容（调用方保证已转义）
+    else contentEl.textContent = content;
     contentEl.classList.toggle('left', opts.align === 'left');
 
     const btns = modalEl.querySelector('.modal-btns');
