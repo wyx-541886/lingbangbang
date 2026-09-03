@@ -30,9 +30,9 @@
     const st = TASK_STATUS[t.status] || TASK_STATUS.pending;
     let action;
     if (withAction && t.status === 'pending') {
-      action = '<button class="accept-btn" data-id="' + t.id + '">接取任务</button>';
+      action = '<button class="accept-btn" data-id="' + escHtml(t.id) + '">接取任务</button>';
     } else if (withAction && t.status === 'doing') {
-      action = '<button class="deliver-btn" data-id="' + t.id + '">交付任务</button>';
+      action = '<button class="deliver-btn" data-id="' + escHtml(t.id) + '">交付任务</button>';
     } else if (t.status === 'done') {
       // 已完成：卡片上展示验收星级摘要；申诉与评分明细收在展开详情里
       const rv = AppStore.getReviewByTask(t.id);
@@ -54,7 +54,7 @@
     const prio = hIdx >= 2
       ? '<span class="tc-prio h' + (hIdx + 1) + '"><i>&#9733;</i> 荣誉头衔「' + escHtml(t.pubHonorName || HONOR_LEVELS[hIdx].name) + '」发布 · 志愿特权优先曝光</span>'
       : '';
-    return '<article class="task-card st-' + st.cls + '" data-task="' + t.id + '">' +
+    return '<article class="task-card st-' + st.cls + '" data-task="' + escHtml(t.id) + '">' +
       '<div class="tc-head">' +
         '<span class="tc-time">' + escHtml(t.createTime) + '</span>' +
         '<span class="tc-head-right">' +
@@ -92,7 +92,7 @@
       }
       html.push(
         '<div class="td-acts">' +
-          '<button type="button" class="td-btn bounty" data-bounty="' + t.id + '">＋ 追加积分悬赏</button>' +
+          '<button type="button" class="td-btn bounty" data-bounty="' + escHtml(t.id) + '">＋ 追加积分悬赏</button>' +
           '<span class="td-tip">迟迟没人接单？追加积分悬赏，让任务更容易被邻里看见。</span>' +
         '</div>'
       );
@@ -126,7 +126,7 @@
             if (showAppeal) {
               html.push(
                 '<div class="td-acts">' +
-                  '<button type="button" class="appeal-btn" data-appeal="' + t.id + '">&#9878; 不服差评 · 去申诉</button>' +
+                  '<button type="button" class="appeal-btn" data-appeal="' + escHtml(t.id) + '">&#9878; 不服差评 · 去申诉</button>' +
                   '<span class="td-tip">认为这次验收不公平？可提交大众评审团，由全社区公开投票裁决。</span>' +
                 '</div>'
               );
@@ -433,39 +433,42 @@
     renderList($('meTaskGrid'), tasks.slice(0, 12), $('meEmpty'), true, true);
   }
 
-  /* ===================== 账户登记（手机号绑定）与隐私 ===================== */
-  // 隐私设计：
-  // 1. 最小收集——仅昵称（选填）+ 手机号；
-  // 2. 验证即弃——完整手机号只在本机做一次「格式 + 验证码」校验，通过后立即丢弃，
-  //    数据层只接收脱敏后的 masked（如 138****5678），localStorage 中绝无明文；
-  // 3. 脱敏展示——所有界面一律只显示打码号码；
-  // 4. 同意留痕——须勾选《邻里隐私保护说明》方可登记，并记录同意时间；
-  // 5. 用户自控——设置页提供查看 / 解绑 / 注销清空入口。
-  const PHONE_RE = /^1[3-9]\d{9}$/; // 中国大陆手机号
-
-  function maskPhone(p) { return p ? p.slice(0, 3) + '****' + p.slice(7) : ''; }
-  function tailOf(p) { return p ? p.slice(-4) : ''; }
+  /* ===================== 账号密码登录 / 注册 与隐私 ===================== */
+  // 设计：
+  // 1. 放弃手机号 + 短信验证码，改为 用户名 + 密码 注册 / 登录；
+  // 2. 密码绝不明文落盘：随机盐 + 加盐哈希（WebCrypto SHA-256），数据层只见哈希；
+  // 3. 简易防刷：密码强度校验（≥8 位且含字母数字）+ 注册频率闸门 + 登录失败递增锁定，
+  //    三道闸门都在 store.js 数据层强制，UI 无法绕过；
+  // 4. 同意留痕——注册须勾选《邻里隐私保护说明》；
+  // 5. 用户自控——设置页提供查看账号 / 退出登录 / 注销清空入口。
+  const USER_RE = /^[A-Za-z][A-Za-z0-9_]{2,15}$/; // 用户名：3~16 位，字母开头，仅字母数字下划线
+  const PWD_MIN = 8; // 密码最短长度
 
   const PRIVACY_TEXT =
     '邻帮帮 · 邻里隐私保护说明\n\n' +
-    '我们以「最少收集、本地留存、验证即弃」为原则处理你的个人信息：\n\n' +
+    '我们以「最少收集、仅存本地、绝不明文」为原则处理你的个人信息：\n\n' +
     '一、我们收集什么\n' +
-    '仅收集你主动填写的两项：\n' +
+    '仅收集你主动填写的三项：\n' +
+    '· 用户名：字母开头、可含数字与下划线，作为登录凭证；\n' +
     '· 昵称（选填）：用于社区内的称呼与头像首字；\n' +
-    '· 手机号码：作为本账户的绑定凭证。\n\n' +
-    '二、手机号怎么保护\n' +
-    '1. 完整号码只在本机做一次性校验（格式 + 短信验证码），通过后立即丢弃；\n' +
-    '2. 本地仅保存「脱敏号码」（例如 138****5678）与登记时间，用于向你展示绑定状态；\n' +
-    '3. 页面中的号码展示均自动打码，不会向任何邻里泄露你的完整号码。\n\n' +
-    '三、数据存在哪里\n' +
+    '· 密码：仅以「随机盐 + 加盐哈希」形式保存在本机，任何地方都找不到密码原文。\n\n' +
+    '二、密码怎么保护\n' +
+    '1. 本页面不会以明文形式保存、上传或展示你的密码；\n' +
+    '2. 登录时在本机比对加盐哈希，哈希无法反推出原文；\n' +
+    '3. 本演示环境不涉及真实财产，请勿与你的重要网站使用同一密码。\n\n' +
+    '三、本地防刷说明\n' +
+    '为降低恶意刷号风险，本机内置三道简易防线：\n' +
+    '1. 密码需至少 8 位且同时包含字母与数字，杜绝弱口令被撞库；\n' +
+    '2. 同一浏览器每 10 分钟最多注册 3 个账号；\n' +
+    '3. 同一用户名连续输错 5 次会被临时锁定，锁定时长按 30 秒起逐级递增。\n' +
+    '以上防线只对本浏览器生效，清空浏览器数据即可重置。\n\n' +
+    '四、数据存在哪里\n' +
     '本页面全部数据仅保存在你自己的浏览器（localStorage）中：不上传服务器、不与他人共享、也不与微信小程序互通。清除浏览器数据即全部删除。\n\n' +
-    '四、你的权利\n' +
+    '五、你的权利\n' +
     '可随时到「设置 → 账户与隐私」：\n' +
-    '· 查看已登记的脱敏信息与同意留痕；\n' +
-    '· 解绑登记（保留积分 / 任务 / 信誉等邻里数据）；\n' +
-    '· 注销并清空本浏览器内邻帮帮的全部数据。\n\n' +
-    '五、演示说明\n' +
-    '当前为演示环境：验证码由系统模拟生成，不会发送真实短信；正式环境将由短信服务商下发验证码，本页承诺同样不落盘完整号码。';
+    '· 查看已登录账号的信息与最近登录时间；\n' +
+    '· 退出登录（账号与积分 / 任务 / 信誉等邻里数据都会保留在本机）；\n' +
+    '· 注销并清空本浏览器内邻帮帮的全部数据。';
 
   function openPrivacy() {
     UI.modal({
@@ -477,213 +480,310 @@
     });
   }
 
-  // 账户登记弹窗（复用 modal-mask 遮罩体系，独立面板以承载表单）
-  let regMaskEl = null;
-  let regCode = null;        // 内存中的验证码 { phone, code }，绝不下沉到 localStorage
-  let regCodeTimer = null;
+  // 登录 / 注册弹窗（复用 modal-mask + reg-* 遮罩与表单样式体系）
+  let authMaskEl = null;
+  let authMode = 'login'; // 'login' | 'register'
 
-  function buildRegisterMask() {
+  // —— 密码哈希工具：WebCrypto SHA-256（加盐），不支持时退化为同步摘要（演示级兜底）
+  function genSalt() {
+    try {
+      const a = new Uint8Array(8);
+      crypto.getRandomValues(a);
+      let s = '';
+      for (let i = 0; i < a.length; i += 1) s += a[i].toString(16).padStart(2, '0');
+      return s;
+    } catch (e) {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    }
+  }
+
+  // 纯同步兜底摘要：仅在浏览器不提供 crypto.subtle（如极老内核）时启用
+  function hashSyncFallback(text) {
+    let h1 = 0x811c9dc5;
+    let h2 = 0x9e3779b9;
+    for (let i = 0; i < text.length; i += 1) {
+      const c = text.charCodeAt(i);
+      h1 = Math.imul(h1 ^ c, 16777619) >>> 0;
+      h2 = Math.imul(h2 + c, 2654435761) >>> 0;
+    }
+    for (let i = 0; i < 500; i += 1) {
+      h1 = (Math.imul(h1 ^ 0x85ebca6b, 2654435761) ^ (h2 >>> 13)) >>> 0;
+      h2 = (Math.imul(h2 ^ 0xc2b2ae35, 1597334677) ^ (h1 >>> 11)) >>> 0;
+    }
+    const pad = function (n) {
+      let s = (n >>> 0).toString(16);
+      while (s.length < 8) s = '0' + s;
+      return s;
+    };
+    return pad(h1) + pad(h2) + pad(h1 ^ h2);
+  }
+
+  async function hashPassword(pw, salt) {
+    const text = salt + '::' + pw;
+    try {
+      if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+        return Array.prototype.map.call(new Uint8Array(buf), function (b) {
+          return b.toString(16).padStart(2, '0');
+        }).join('');
+      }
+    } catch (e) { /* 走同步兜底 */ }
+    return hashSyncFallback(text);
+  }
+
+  function buildAuthMask() {
     const m = document.createElement('div');
     m.className = 'modal-mask reg-mask';
     m.innerHTML =
       '<div class="reg-panel">' +
         '<button class="modal-x" type="button" aria-label="关闭">&times;</button>' +
         '<div class="reg-head">' +
-          '<div class="reg-ic">&#128272;</div>' +
-          '<div class="reg-title">手机号登记注册</div>' +
-          '<div class="reg-sub">绑定手机号，为你在社区的每一份善举建立可追溯的邻里身份。</div>' +
+          '<div class="reg-ic">&#128273;</div>' +
+          '<div class="reg-title" id="authTitle">登录邻帮帮</div>' +
+          '<div class="reg-sub" id="authSub">欢迎回来，登录后继续你的邻里互助之旅。</div>' +
         '</div>' +
-        '<div class="reg-note">&#128274; 隐私承诺：我们仅收集<b>昵称</b>与<b>手机号</b>；完整号码只在本机做一次校验，<b>校验后立即丢弃</b>，本地仅留存脱敏号码。</div>' +
-        '<div class="reg-field">' +
-          '<label class="reg-label" for="regNick">昵称<span class="need">选填 · 默认「邻友+尾号」</span></label>' +
-          '<input class="input" id="regNick" type="text" maxlength="12" placeholder="例如：热心老王">' +
-        '</div>' +
-        '<div class="reg-field">' +
-          '<label class="reg-label" for="regPhone">手机号码<span class="need">用于绑定账户</span></label>' +
-          '<div class="reg-code-row">' +
-            '<input class="input reg-phone-input" id="regPhone" type="tel" maxlength="11" inputmode="numeric" placeholder="请输入 11 位手机号">' +
-            '<button type="button" class="reg-send" id="regSend">获取验证码</button>' +
-          '</div>' +
+        '<div class="reg-note">&#128274; 隐私承诺：密码仅以「随机盐 + 加盐哈希」保存在本机，绝不明文落盘。</div>' +
+        '<div class="reg-field" id="authNickWrap" hidden>' +
+          '<label class="reg-label" for="authNick">昵称<span class="need">选填 · 默认「邻友」</span></label>' +
+          '<input class="input" id="authNick" type="text" maxlength="12" autocomplete="nickname" placeholder="例如：热心老王">' +
         '</div>' +
         '<div class="reg-field">' +
-          '<label class="reg-label" for="regCode">短信验证码<span class="need">6 位数字</span></label>' +
-          '<input class="input" id="regCode" type="tel" maxlength="6" inputmode="numeric" placeholder="请输入 6 位验证码">' +
+          '<label class="reg-label" for="authUser">用户名<span class="need" id="authUserHint"></span></label>' +
+          '<input class="input" id="authUser" type="text" maxlength="16" autocomplete="username" placeholder="3~16 位 · 字母开头，可含数字 / 下划线" spellcheck="false">' +
         '</div>' +
-        '<div class="reg-agree">' +
-          '<input type="checkbox" id="regAgree">' +
-          '<p class="reg-agree-tx">我已阅读并同意 <button type="button" class="reg-link" data-reg="policy">《邻里隐私保护说明》</button>，并理解平台仅在本地保存脱敏信息。</p>' +
+        '<div class="reg-field">' +
+          '<label class="reg-label" for="authPwd">密码<span class="need" id="authPwdHint"></span></label>' +
+          '<input class="input" id="authPwd" type="password" maxlength="64" autocomplete="current-password" placeholder="请输入密码">' +
         '</div>' +
-        '<div class="reg-err" id="regErr"></div>' +
-        '<button type="button" class="reg-submit" id="regSubmit">完成登记</button>' +
-        '<div class="reg-foot">演示环境：验证码为系统模拟生成，不会发送真实短信；完整手机号不会被保存或上传。</div>' +
+        '<div class="reg-agree" id="authAgreeWrap">' +
+          '<input type="checkbox" id="authAgree">' +
+          '<p class="reg-agree-tx">我已阅读并同意 <button type="button" class="reg-link" data-auth-policy="1">《邻里隐私保护说明》</button>，并理解本机仅以加盐哈希保存密码。</p>' +
+        '</div>' +
+        '<div class="reg-err" id="authErr"></div>' +
+        '<button type="button" class="reg-submit" id="authSubmit">登 录</button>' +
+        '<div class="reg-foot" id="authSwitch">还没有账号？<button type="button" class="reg-link" data-auth-switch="1">立即注册</button></div>' +
       '</div>';
     document.body.appendChild(m);
 
-    function close() {
-      m.classList.remove('show');
-      resetRegCode();
-    }
-    m.addEventListener('click', function (e) { if (e.target === m) close(); });
-    m.querySelector('.modal-x').addEventListener('click', close);
-    m.querySelector('.reg-link').addEventListener('click', function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      openPrivacy();
+    m.addEventListener('click', function (e) {
+      // 点击遮罩空白处关闭
+      if (e.target === m) { closeAuthMask(); return; }
+      // 登录 / 注册模式切换（foot 文案会被重绘，统一在此委托）
+      const sw = e.target.closest ? e.target.closest('[data-auth-switch]') : null;
+      if (sw) { e.preventDefault(); toggleAuthMode(); return; }
+      // 隐私说明链接
+      const pl = e.target.closest ? e.target.closest('[data-auth-policy]') : null;
+      if (pl) { e.preventDefault(); e.stopPropagation(); openPrivacy(); return; }
     });
-    m.querySelector('#regSend').addEventListener('click', sendRegCode);
-    m.querySelector('#regPhone').addEventListener('input', function () {
-      this.value = this.value.replace(/\D/g, '').slice(0, 11);
-    });
-    m.querySelector('#regCode').addEventListener('input', function () {
-      this.value = this.value.replace(/\D/g, '').slice(0, 6);
-    });
-    m.querySelector('#regSubmit').addEventListener('click', submitRegister);
+    m.querySelector('.modal-x').addEventListener('click', closeAuthMask);
     // 点协议整行 = 切换勾选（按钮与复选框自身除外）
-    m.querySelector('.reg-agree').addEventListener('click', function (e) {
+    m.querySelector('#authAgreeWrap').addEventListener('click', function (e) {
       const tag = e.target.tagName;
-      if (tag !== 'BUTTON' && e.target.id !== 'regAgree') {
-        const cb = m.querySelector('#regAgree');
+      if (tag !== 'BUTTON' && e.target.id !== 'authAgree') {
+        const cb = m.querySelector('#authAgree');
         cb.checked = !cb.checked;
+      }
+    });
+    // 用户名输入实时清洗非法字符
+    m.querySelector('#authUser').addEventListener('input', function () {
+      this.value = this.value.replace(/[^A-Za-z0-9_]/g, '').slice(0, 16);
+    });
+    // 回车提交
+    m.querySelector('#authSubmit').addEventListener('click', submitAuth);
+    m.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && e.target && e.target.tagName !== 'BUTTON') {
+        e.preventDefault();
+        submitAuth();
       }
     });
     return m;
   }
 
-  // 获取验证码：校验手机号格式 → 生成演示码（仅存内存）→ 30 秒倒计时
-  function sendRegCode() {
-    if (!regMaskEl || regCodeTimer) return;
-    const m = regMaskEl;
-    const phone = m.querySelector('#regPhone').value.trim();
-    const err = m.querySelector('#regErr');
-    if (!PHONE_RE.test(phone)) {
-      err.textContent = '请输入正确的 11 位手机号（1 开头、第二位为 3-9）';
+  // 模式切换：登录 ⇄ 注册
+  function toggleAuthMode() {
+    setAuthMode(authMode === 'register' ? 'login' : 'register');
+    const m = authMaskEl;
+    if (m) {
+      const pwd = m.querySelector('#authPwd');
+      if (pwd) pwd.value = '';
+      const err = m.querySelector('#authErr');
+      if (err) err.textContent = '';
+    }
+  }
+
+  function setAuthMode(mode) {
+    authMode = mode === 'register' ? 'register' : 'login';
+    const m = authMaskEl;
+    if (!m) return;
+    const isReg = authMode === 'register';
+    const nickWrap = m.querySelector('#authNickWrap');
+    const agreeWrap = m.querySelector('#authAgreeWrap');
+    if (nickWrap) nickWrap.hidden = !isReg;
+    if (agreeWrap) agreeWrap.hidden = !isReg;
+    const title = m.querySelector('#authTitle');
+    const sub = m.querySelector('#authSub');
+    const submit = m.querySelector('#authSubmit');
+    const sw = m.querySelector('#authSwitch');
+    const uHint = m.querySelector('#authUserHint');
+    const pwdHint = m.querySelector('#authPwdHint');
+    const pwd = m.querySelector('#authPwd');
+    if (title) title.textContent = isReg ? '注册邻帮帮账号' : '登录邻帮帮';
+    if (sub) sub.textContent = isReg
+      ? '创建你的邻里身份；演示环境不会发送任何短信，账号仅保存在本浏览器。'
+      : '欢迎回来，登录后继续你的邻里互助之旅。';
+    if (submit) submit.textContent = isReg ? '注册并登录' : '登 录';
+    if (sw) sw.innerHTML = isReg
+      ? '已有账号？<button type="button" class="reg-link" data-auth-switch="1">直接登录</button>'
+      : '还没有账号？<button type="button" class="reg-link" data-auth-switch="1">立即注册</button>';
+    if (uHint) uHint.textContent = isReg ? '3~16 位 · 字母开头，可含数字 / 下划线' : '';
+    if (pwdHint) pwdHint.textContent = isReg ? '至少 8 位，须同时含字母和数字（防弱口令）' : '';
+    if (pwd) pwd.autocomplete = isReg ? 'new-password' : 'current-password';
+  }
+
+  function resetAuthFields() {
+    const m = authMaskEl;
+    if (!m) return;
+    m.querySelector('#authUser').value = '';
+    m.querySelector('#authPwd').value = '';
+    const nick = m.querySelector('#authNick');
+    if (nick) nick.value = '';
+    const ag = m.querySelector('#authAgree');
+    if (ag) ag.checked = false;
+    const err = m.querySelector('#authErr');
+    if (err) err.textContent = '';
+  }
+
+  function closeAuthMask() {
+    if (!authMaskEl) return;
+    authMaskEl.classList.remove('show');
+    resetAuthFields();
+  }
+
+  // 提交登录 / 注册（异步哈希，先本地校验再做数据层闸门判定）
+  async function submitAuth() {
+    if (state.acting || !authMaskEl) return;
+    const m = authMaskEl;
+    const err = m.querySelector('#authErr');
+    const isReg = authMode === 'register';
+    const username = m.querySelector('#authUser').value.trim();
+    const pwd = m.querySelector('#authPwd').value;
+    const nick = isReg ? m.querySelector('#authNick').value.trim() : '';
+    const agree = !isReg || m.querySelector('#authAgree').checked;
+
+    if (!username) { err.textContent = '请输入用户名'; return; }
+    if (!isReg && !USER_RE.test(username)) { err.textContent = '用户名格式不正确'; return; }
+    if (isReg && !USER_RE.test(username)) {
+      err.textContent = '用户名需为 3~16 位，字母开头，仅可含数字 / 下划线';
       return;
     }
-    err.textContent = '';
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    regCode = { phone: phone, code: code };
-    UI.toast('演示验证码：' + code + '（30 秒内有效）');
-    const btn = m.querySelector('#regSend');
-    let left = 30;
-    btn.disabled = true;
-    btn.textContent = '重新获取(' + left + 's)';
-    regCodeTimer = setInterval(function () {
-      left -= 1;
-      if (left <= 0) {
-        resetRegCode();
+    if (!pwd) { err.textContent = '请输入密码'; return; }
+    if (isReg) {
+      if (!agree) { err.textContent = '请先阅读并勾选同意《邻里隐私保护说明》'; return; }
+      if (pwd.length < PWD_MIN) { err.textContent = '密码至少 ' + PWD_MIN + ' 位'; return; }
+      if (!/[A-Za-z]/.test(pwd) || !/\d/.test(pwd)) {
+        err.textContent = '密码须同时包含字母和数字（防止弱口令被撞库）';
         return;
       }
-      btn.textContent = '重新获取(' + left + 's)';
-    }, 1000);
-  }
+    }
 
-  function resetRegCode() {
-    if (regCodeTimer) { clearInterval(regCodeTimer); regCodeTimer = null; }
-    regCode = null;
-    if (regMaskEl) {
-      const btn = regMaskEl.querySelector('#regSend');
-      if (btn) { btn.disabled = false; btn.textContent = '获取验证码'; }
+    err.textContent = '';
+    state.acting = true;
+    const btn = m.querySelector('#authSubmit');
+    if (btn) btn.disabled = true;
+    try {
+      if (isReg) {
+        const salt = genSalt();
+        const pwdHash = await hashPassword(pwd, salt);
+        const r = AppStore.register({ username: username, salt: salt, pwdHash: pwdHash, nickname: nick });
+        if (!r.ok) { err.textContent = r.msg; return; }
+        closeAuthMask();
+        renderAccountUI();
+        UI.toast('注册成功，已自动登录', 'success');
+      } else {
+        const salt = AppStore.getSalt(username);
+        if (!salt) {
+          err.textContent = '用户名或密码不正确';
+          return;
+        }
+        const pwdHash = await hashPassword(pwd, salt);
+        const r = AppStore.login({ username: username, pwdHash: pwdHash });
+        if (!r.ok) {
+          err.textContent = r.msg;
+          return;
+        }
+        closeAuthMask();
+        renderAccountUI();
+        UI.toast('登录成功，欢迎回来', 'success');
+      }
+    } finally {
+      state.acting = false;
+      if (btn) btn.disabled = false;
     }
   }
 
-  // 提交登记：全部校验通过后，完整号码就此“功成身退”，仅把脱敏串交给数据层留存
-  function submitRegister() {
-    if (state.acting || !regMaskEl) return;
-    const m = regMaskEl;
-    const err = m.querySelector('#regErr');
-    const phone = m.querySelector('#regPhone').value.trim();
-    const code = m.querySelector('#regCode').value.trim();
-    const nick = m.querySelector('#regNick').value.trim();
-    const agree = m.querySelector('#regAgree').checked;
-    if (!PHONE_RE.test(phone)) { err.textContent = '手机号格式不正确，请检查后重试'; return; }
-    if (!regCode || regCode.phone !== phone) { err.textContent = '请先获取该手机号的验证码'; return; }
-    if (code !== regCode.code) { err.textContent = '验证码不正确或已失效，请重新获取'; return; }
-    if (!agree) { err.textContent = '请先阅读并勾选同意《邻里隐私保护说明》'; return; }
-
-    state.acting = true;
-    const btn = m.querySelector('#regSubmit');
-    if (btn) btn.disabled = true;
-    err.textContent = '';
+  // 打开登录 / 注册弹窗
+  function showAuthMask(mode) {
+    if (AppStore.getSession()) { openAccountInfo(); return; }
+    if (!authMaskEl) authMaskEl = buildAuthMask();
+    resetAuthFields();
+    setAuthMode(mode === 'register' ? 'register' : 'login');
+    authMaskEl.classList.add('show');
     setTimeout(function () {
-      const r = AppStore.registerAccount({
-        nickname: nick || ('邻友' + tailOf(phone)),
-        masked: maskPhone(phone)
-      });
-      state.acting = false;
-      if (btn) btn.disabled = false;
-      if (!r.ok) { err.textContent = r.msg; return; }
-      m.classList.remove('show');
-      resetRegCode();
-      renderAccountUI();
-      UI.toast('登记成功，号码已脱敏保护', 'success');
-    }, 350);
-  }
-
-  function showRegisterMask() {
-    if (AppStore.getAccount()) { openAccountInfo(); return; }
-    if (!regMaskEl) regMaskEl = buildRegisterMask();
-    const m = regMaskEl;
-    m.querySelector('#regNick').value = '';
-    m.querySelector('#regPhone').value = '';
-    m.querySelector('#regCode').value = '';
-    m.querySelector('#regAgree').checked = false;
-    m.querySelector('#regErr').textContent = '';
-    resetRegCode();
-    m.classList.add('show');
-    setTimeout(function () {
-      const n = m.querySelector('#regPhone');
-      if (n) n.focus();
+      const u = authMaskEl.querySelector('#authUser');
+      if (u) u.focus();
     }, 80);
   }
 
-  // 顶栏账户入口与「我的」页登记引导的统一分发
+  // 顶栏账户入口与「我的」页登录引导的统一分发
   function onAcct(what) {
-    if (AppStore.getAccount()) openAccountInfo();
-    else showRegisterMask();
+    if (AppStore.getSession()) openAccountInfo();
+    else showAuthMask('login');
   }
 
-  // 登记后账户信息（脱敏展示 + 同意留痕）
+  function fmtTime(ts) { return ts ? new Date(ts).toLocaleString() : '—'; }
+
+  // 登录后的账号信息卡片（不含任何密码相关字段）
   function openAccountInfo() {
-    const acct = AppStore.getAccount();
-    if (!acct) { showRegisterMask(); return; }
+    const user = AppStore.getCurrentUser();
+    if (!user) { showAuthMask('login'); return; }
     UI.choice({
-      title: '账户与隐私',
+      title: '我的账号',
       html:
         '<div class="acc-card">' +
-          '<div class="acc-row"><span class="k">昵称</span><span class="v">' + escHtml(acct.nickname) + '</span></div>' +
-          '<div class="acc-row"><span class="k">登记手机号</span><span class="v acc-masked">' + escHtml(acct.masked) + '</span></div>' +
-          '<div class="acc-row"><span class="k">登记时间</span><span class="v">' + escHtml(acct.boundAt) + '</span></div>' +
-          '<div class="acc-row"><span class="k">同意隐私说明</span><span class="v">' + escHtml(acct.consentAt || acct.boundAt) + '</span></div>' +
-          '<div class="acc-sec">你的完整手机号从未被保存：登记时仅做一次性校验即丢弃，本机只留存以上脱敏信息，用于展示绑定状态。</div>' +
+          '<div class="acc-row"><span class="k">用户名</span><span class="v">@' + escHtml(user.username) + '</span></div>' +
+          '<div class="acc-row"><span class="k">昵称</span><span class="v">' + escHtml(user.nickname) + '</span></div>' +
+          '<div class="acc-row"><span class="k">注册时间</span><span class="v">' + escHtml(fmtTime(user.createdAt)) + '</span></div>' +
+          '<div class="acc-row"><span class="k">最近登录</span><span class="v">' + escHtml(fmtTime(user.lastLoginAt)) + '</span></div>' +
+          '<div class="acc-sec">密码仅以「随机盐 + 加盐哈希」保存在本机，任何数据中都没有你的密码原文；本账号只在本浏览器有效，不会与微信小程序或其他设备互通。</div>' +
         '</div>',
       buttons: [
         { text: '查看隐私说明', value: 'policy' },
-        { text: '解绑登记', cls: 'danger', value: 'unbind' },
+        { text: '退出登录', cls: 'danger', value: 'logout' },
         { text: '关闭', value: false }
       ],
       colButtons: true
     }).then(function (act) {
       if (act === 'policy') openPrivacy();
-      else if (act === 'unbind') doUnbindAccount();
+      else if (act === 'logout') doLogout();
     });
   }
 
-  async function doUnbindAccount() {
+  async function doLogout() {
     if (state.acting) return;
     const ok = await UI.confirm({
-      title: '解绑手机号登记',
-      content: '解除手机号与账户的绑定？你的积分、任务与信誉等邻里数据会全部保留，只是不再展示登记身份。',
-      confirmText: '解绑'
+      title: '退出登录',
+      content: '退出当前账号？本机保存的账号与积分 / 任务 / 信誉等邻里数据都会保留，可随时重新登录。',
+      confirmText: '退出'
     });
     if (!ok) return;
     state.acting = true;
-    UI.showLoading('正在解绑...');
+    UI.showLoading('正在退出...');
     setTimeout(function () {
-      AppStore.unbindAccount();
+      AppStore.logout();
       UI.hideLoading();
       state.acting = false;
       renderAccountUI();
-      UI.toast('已解绑登记', 'success');
+      UI.toast('已退出登录');
     }, 300);
   }
 
@@ -691,7 +791,7 @@
     if (state.acting) return;
     const ok = await UI.confirm({
       title: '注销并清空本机数据',
-      content: '将删除本浏览器内邻帮帮的全部记录：账户登记、积分、任务、信誉、历史评分与申诉案件，且不可恢复。确定继续吗？',
+      content: '将删除本浏览器内邻帮帮的全部记录：登录账号、积分、任务、信誉、历史评分与申诉案件，且不可恢复。确定继续吗？',
       confirmText: '全部清空'
     });
     if (!ok) return;
@@ -718,38 +818,38 @@
     }, 400);
   }
 
-  // 把登记状态同步到顶栏、我的页与设置页（三处入口共用一份状态）
+  // 把登录状态同步到顶栏、我的页与设置页（三处入口共用一份状态）
   function renderAccountUI() {
-    const acct = AppStore.getAccount();
+    const user = AppStore.getCurrentUser();
     const apV = $('apTopValue');
     if (apV) {
-      apV.textContent = acct ? acct.masked : '未登记';
-      apV.classList.toggle('guest', !acct);
+      apV.textContent = user ? '@' + user.username : '未登录';
+      apV.classList.toggle('guest', !user);
     }
     const pfName = $('pfName');
     const ava = $('meAvatar');
-    if (acct) {
-      if (pfName) pfName.textContent = acct.nickname;
-      if (ava) ava.textContent = (acct.nickname || '邻').slice(0, 1);
+    if (user) {
+      if (pfName) pfName.textContent = user.nickname;
+      if (ava) ava.textContent = (user.nickname || '邻').slice(0, 1);
     } else {
       if (pfName) pfName.textContent = '邻帮帮用户';
       if (ava) ava.textContent = '邻';
     }
     const pfAcc = $('pfAccount');
     if (pfAcc) {
-      pfAcc.innerHTML = acct
-        ? '<span class="acc-badge">&#128274; ' + escHtml(acct.masked) + '<i>· 已登记</i></span>' +
-          '<span class="acc-bound">' + escHtml(acct.boundAt) + '</span>'
-        : '<button type="button" class="acc-reg-btn" data-acct="reg"><i>&#128272;</i> 登记手机号 · 建立邻里身份</button>';
+      pfAcc.innerHTML = user
+        ? '<span class="acc-badge">&#128273; @' + escHtml(user.username) + '<i>· 已登录</i></span>' +
+          '<span class="acc-bound">昵称 ' + escHtml(user.nickname) + ' · ' + escHtml(fmtTime(user.lastLoginAt)) + ' 登录</span>'
+        : '<button type="button" class="acc-reg-btn" data-acct="reg"><i>&#128273;</i> 登录 / 注册 · 建立邻里身份</button>';
     }
-    const sub = $('cellPhoneSub');
+    const sub = $('cellAuthSub');
     if (sub) {
-      sub.textContent = acct
-        ? '已登记 ' + acct.masked + ' · 点击查看账户信息'
-        : '未登记 · 点击用手机号守护你的社区身份';
+      sub.textContent = user
+        ? '已登录 @' + user.username + ' · 点击查看账号信息'
+        : '未登录 · 点击用账号密码登录或注册';
     }
-    const unbind = $('cellUnbind');
-    if (unbind) unbind.hidden = !acct;
+    const logoutCell = $('cellLogout');
+    if (logoutCell) logoutCell.hidden = !user;
   }
 
   /* ===================== 五级志愿荣誉机制 ===================== */
@@ -1151,8 +1251,8 @@
           '</div>' +
           '<div class="jb-hint">' + hint + '</div>' +
           '<div class="jb-btns">' +
-            '<button type="button" class="vote-btn support" data-vote="' + a.id + '" data-side="support">&#10003; 支持申诉 · 撤销差评</button>' +
-            '<button type="button" class="vote-btn reject" data-vote="' + a.id + '" data-side="reject">维持差评</button>' +
+            '<button type="button" class="vote-btn support" data-vote="' + escHtml(a.id) + '" data-side="support">&#10003; 支持申诉 · 撤销差评</button>' +
+            '<button type="button" class="vote-btn reject" data-vote="' + escHtml(a.id) + '" data-side="reject">维持差评</button>' +
           '</div>' +
         '</div>';
     } else if (a.status === 'upheld') {
@@ -1228,13 +1328,14 @@
   async function runSetting(act) {
     if (state.acting) return;
 
-    if (act === 'phoneReg') {
-      showRegisterMask();
+    if (act === 'authEntry') {
+      if (AppStore.getSession()) openAccountInfo();
+      else showAuthMask('login');
+    } else if (act === 'logout') {
+      if (!AppStore.getSession()) { UI.toast('当前未登录'); return; }
+      doLogout();
     } else if (act === 'privacyPolicy') {
       openPrivacy();
-    } else if (act === 'unbindAccount') {
-      if (!AppStore.getAccount()) { UI.toast('当前尚未登记手机号'); return; }
-      doUnbindAccount();
     } else if (act === 'wipeLocal') {
       doWipeLocal();
     } else if (act === 'resetPts') {
@@ -1430,6 +1531,6 @@
     resizeTimer = setTimeout(UI.fillWaterfall, 250);
   });
   bindEvents();
-  renderAccountUI(); // 启动即同步顶栏 / 我的 / 设置中的登记状态
+  renderAccountUI(); // 启动即同步顶栏 / 我的 / 设置中的登录状态
   nav('home');
 })();
