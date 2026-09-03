@@ -34,9 +34,8 @@
     } else if (withAction && t.status === 'doing') {
       action = '<button class="deliver-btn" data-id="' + t.id + '">交付任务</button>';
     } else if (t.status === 'done') {
-      // 已完成：展示验收星级；若被差评，在“我的任务”中提供申诉入口
+      // 已完成：卡片上展示验收星级摘要；申诉与评分明细收在展开详情里
       const rv = AppStore.getReviewByTask(t.id);
-      const ap = AppStore.getAppealByTaskId(t.id);
       let stateTxt = '<span class="done-tag">&#10003; 已完成</span>';
       if (rv) {
         if (rv.appealStatus === 'upheld') {
@@ -47,29 +46,107 @@
           stateTxt += '<span class="done-rate">&#9733; ' + rv.avg + ' 均星</span>';
         }
       }
-      if (showAppeal && rv && rv.delta < 0 && !ap) {
-        action = '<span class="done-actions">' +
-          '<span class="done-meta">' + stateTxt + '</span>' +
-          '<button class="appeal-btn" data-appeal="' + t.id + '">&#9878; 不服 · 去申诉</button>' +
-        '</span>';
-      } else {
-        action = '<span class="done-meta">' + stateTxt + '</span>';
-      }
+      action = '<span class="done-actions">' + stateTxt + '</span>';
     } else {
       action = '<span class="done-tag">待接取</span>';
     }
-    return '<article class="task-card st-' + st.cls + '">' +
+    const hIdx = Math.min(4, Math.max(0, Number(t.pubHonorIdx) || 0));
+    const prio = hIdx >= 2
+      ? '<span class="tc-prio h' + (hIdx + 1) + '"><i>&#9733;</i> 荣誉头衔「' + escHtml(t.pubHonorName || HONOR_LEVELS[hIdx].name) + '」发布 · 志愿特权优先曝光</span>'
+      : '';
+    return '<article class="task-card st-' + st.cls + '" data-task="' + t.id + '">' +
       '<div class="tc-head">' +
         '<span class="tc-time">' + escHtml(t.createTime) + '</span>' +
-        '<span class="tc-state ' + st.cls + '">' + st.txt + '</span>' +
+        '<span class="tc-head-right">' +
+          '<span class="tc-state ' + st.cls + '">' + st.txt + '</span>' +
+          '<span class="tc-more" aria-hidden="true">&#9662;</span>' +
+        '</span>' +
       '</div>' +
+      prio +
       '<h3 class="tc-title">' + escHtml(t.title) + '</h3>' +
       '<p class="tc-desc">' + escHtml(t.desc) + '</p>' +
       '<div class="tc-foot">' +
         '<span class="tc-reward">悬赏 <b>+' + t.reward + ' 积分</b></span>' +
         action +
       '</div>' +
+      taskDetailHtml(t, showAppeal) +
     '</article>';
+  }
+
+  // 任务卡展开详情：集中呈现追加悬赏、验收评分、申诉入口与评审进展
+  function taskDetailHtml(t, showAppeal) {
+    const html = [];
+    if (t.status === 'pending') {
+      html.push(
+        '<div class="td-line"><span class="td-k">等待接取</span>' +
+        '<span class="td-v">悬赏总额 <b class="td-hot">+' + t.reward + '</b> 积分，任务发布即已从你的积分中扣减。</span></div>'
+      );
+      if (Array.isArray(t.rewardLog) && t.rewardLog.length) {
+        const items = t.rewardLog.slice(-5).map(function (r) {
+          return '<li><b>+' + r.add + '</b> 积分 · 当前总额 +' + r.total + ' · ' + escHtml(r.time) + '</li>';
+        }).join('');
+        html.push(
+          '<div class="td-sec"><span class="td-sec-t">追加悬赏记录</span>' +
+          '<ul class="td-log">' + items + '</ul></div>'
+        );
+      }
+      html.push(
+        '<div class="td-acts">' +
+          '<button type="button" class="td-btn bounty" data-bounty="' + t.id + '">＋ 追加积分悬赏</button>' +
+          '<span class="td-tip">迟迟没人接单？追加积分悬赏，让任务更容易被邻里看见。</span>' +
+        '</div>'
+      );
+    } else if (t.status === 'doing') {
+      html.push(
+        '<div class="td-sec">' +
+          '<span class="td-sec-t">进行中</span>' +
+          '<p class="td-para">任务已被接取，正在执行中。交付完成后，发布者将按「完成度 + 服务态度」为接单者打星验收（1~5 整星），星级公平换算为信誉分；若接单者收到不公正差评，可在「我的 → 我的任务」中找到该任务发起申诉。</p>' +
+        '</div>'
+      );
+    } else if (t.status === 'done') {
+      const rv = AppStore.getReviewByTask(t.id);
+      const ap = rv ? AppStore.getAppealByTaskId(t.id) : null;
+      if (rv) {
+        const upheld = rv.appealStatus === 'upheld';
+        html.push(
+          '<div class="td-sec td-rate">' +
+            '<span class="td-sec-t">验收评分</span>' +
+            '<div class="td-stars">' +
+              '<span class="s-base" aria-hidden="true">★★★★★</span>' +
+              '<span class="s-fill" style="width:' + (rv.avg / 5 * 100) + '%" aria-hidden="true">★★★★★</span>' +
+            '</div>' +
+            '<p class="td-rv">完成度 ' + rv.completion + '★ · 服务态度 ' + rv.attitude + '★ · 均星 ' + rv.avg +
+              (upheld ? ' · <em class="td-cancelled">该差评经评审撤销</em>' : '') + '</p>' +
+            (rv.comment ? '<p class="td-cm">评语：「' + escHtml(rv.comment) + '」</p>' : '') +
+          '</div>'
+        );
+        if (rv.delta < 0 && !upheld) {
+          if (!ap) {
+            // 被差评且尚未申诉：在我的任务中提供申诉入口
+            if (showAppeal) {
+              html.push(
+                '<div class="td-acts">' +
+                  '<button type="button" class="appeal-btn" data-appeal="' + t.id + '">&#9878; 不服差评 · 去申诉</button>' +
+                  '<span class="td-tip">认为这次验收不公平？可提交大众评审团，由全社区公开投票裁决。</span>' +
+                '</div>'
+              );
+            }
+          } else if (ap.status === 'voting') {
+            html.push('<div class="td-status voting">&#9878; 已提交申诉 · 大众评审中，等待社区投票裁决。</div>');
+          } else if (ap.status === 'rejected') {
+            html.push('<div class="td-status no">申诉未获支持，大众评审裁定维持原差评。</div>');
+          }
+        } else if (rv.delta >= 0) {
+          html.push('<p class="td-good">&#10003; 本次验收为好评，信誉' + (rv.delta > 0 ? ' +' + rv.delta : ' 无变动') + '，已记入信誉档案。</p>');
+        }
+        if (ap) {
+          html.push('<div class="td-acts"><button type="button" class="td-btn" data-goto="jury">查看大众评审进展</button></div>');
+        }
+      } else {
+        html.push('<p class="td-para">该任务已完成，暂无验收评分记录。</p>');
+      }
+    }
+    return '<div class="task-detail">' + html.join('') + '</div>';
   }
 
   function renderList(gridEl, tasks, emptyEl, withAction, showAppeal) {
@@ -87,6 +164,13 @@
     const all = AppStore.getTasks();
     const f = state.filter;
     const shown = f === 'all' ? all.slice() : all.filter(function (t) { return t.status === f; });
+
+    // 志愿等级特权：发布者荣誉越高的任务，曝光越靠前（等级快照写入发布瞬间）；同级保持发布先后，最新在前
+    shown.sort(function (a, b) {
+      const ha = Math.min(4, Math.max(0, Number(a.pubHonorIdx) || 0));
+      const hb = Math.min(4, Math.max(0, Number(b.pubHonorIdx) || 0));
+      return hb - ha;
+    });
 
     renderList($('taskGrid'), shown, $('emptyBoard'), true);
 
@@ -229,13 +313,17 @@
         return;
       }
 
+      // 志愿等级特权：发布瞬间快照当前志愿称号并写入任务，广场将据此给任务更优先的曝光
+      const honorNow = computeHonor();
       const task = {
         id: String(Date.now()),
         title: title,
         desc: desc,
         reward: rewardNum,
         status: 'pending',
-        createTime: new Date().toLocaleString()
+        createTime: new Date().toLocaleString(),
+        pubHonorIdx: honorNow.levelIdx,
+        pubHonorName: honorNow.level.name
       };
       const tasks = AppStore.getTasks();
       tasks.unshift(task);
@@ -243,7 +331,7 @@
 
       UI.hideLoading();
       syncPoints();
-      UI.toast('发布成功', 'success');
+      UI.toast(honorNow.levelIdx >= 2 ? '发布成功 · 志愿荣誉特权，任务优先曝光' : '发布成功', 'success');
       clearForm();
       setFilter('all');
       nav('home');
@@ -612,6 +700,105 @@
     });
   }
 
+  /* ===================== 追加积分悬赏 ===================== */
+  let bountyMaskEl = null;
+  let bountyTaskId = null;
+  let bountyBaseReward = 0;
+
+  function buildBountyMask() {
+    const m = document.createElement('div');
+    m.className = 'modal-mask bounty-mask';
+    m.innerHTML =
+      '<div class="bounty-panel">' +
+        '<button class="modal-x" type="button" aria-label="关闭">&times;</button>' +
+        '<div class="bd-title">追加积分悬赏</div>' +
+        '<div class="bd-task"></div>' +
+        '<div class="bd-balance"></div>' +
+        '<div class="bd-input-row">' +
+          '<span class="bd-prefix">+</span>' +
+          '<input class="bd-input" type="number" min="1" step="1" inputmode="numeric" placeholder="填入追加积分数量">' +
+        '</div>' +
+        '<div class="bd-chips">' +
+          [5, 10, 20, 50].map(function (v) {
+            return '<button type="button" class="bd-chip" data-v="' + v + '">+' + v + '</button>';
+          }).join('') +
+        '</div>' +
+        '<div class="bd-total">追加后悬赏总额：<b>--</b> 积分</div>' +
+        '<div class="bd-tip">发布任务时已预先扣减悬赏积分；追加的积分将立即从当前积分中扣除，用于提高任务的吸引力。</div>' +
+        '<div class="modal-btns">' +
+          '<button type="button" class="modal-btn cancel">取消</button>' +
+          '<button type="button" class="modal-btn submit">确认追加</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(m);
+
+    function close() { m.classList.remove('show'); bountyTaskId = null; }
+    m.addEventListener('click', function (e) { if (e.target === m) close(); });
+    m.querySelector('.modal-x').addEventListener('click', close);
+    m.querySelector('.modal-btns .cancel').addEventListener('click', close);
+    m.querySelector('.modal-btns .submit').addEventListener('click', submitBounty);
+
+    const input = m.querySelector('.bd-input');
+    input.addEventListener('input', updateBountyTotal);
+    m.querySelectorAll('.bd-chip').forEach(function (ch) {
+      ch.addEventListener('click', function () {
+        m.querySelectorAll('.bd-chip').forEach(function (c) { c.classList.remove('on'); });
+        ch.classList.add('on');
+        input.value = ch.dataset.v;
+        updateBountyTotal();
+      });
+    });
+    return m;
+  }
+
+  function updateBountyTotal() {
+    if (!bountyMaskEl) return;
+    const m = bountyMaskEl;
+    const v = Math.floor(Number(m.querySelector('.bd-input').value) || 0);
+    const total = bountyBaseReward + (v > 0 ? v : 0);
+    const b = m.querySelector('.bd-total b');
+    if (b) b.textContent = total;
+  }
+
+  function openBountyModal(taskId) {
+    const t = AppStore.getTasks().find(function (x) { return String(x.id) === String(taskId); });
+    if (!t || t.status !== 'pending') { UI.toast('该任务当前无法追加悬赏'); return; }
+    if (!bountyMaskEl) bountyMaskEl = buildBountyMask();
+    const m = bountyMaskEl;
+    bountyTaskId = String(taskId);
+    bountyBaseReward = Number(t.reward) || 0;
+    m.querySelector('.bd-task').innerHTML =
+      '任务《' + escHtml(t.title) + '》<span class="bd-cur">当前悬赏 <b>+' + bountyBaseReward + '</b> 积分</span>';
+    m.querySelector('.bd-balance').innerHTML = '当前可用积分 <b>' + AppStore.getPoints() + '</b>';
+    const input = m.querySelector('.bd-input');
+    input.value = '';
+    m.querySelectorAll('.bd-chip').forEach(function (c) { c.classList.remove('on'); });
+    updateBountyTotal();
+    m.classList.add('show');
+    setTimeout(function () { input.focus(); }, 80);
+  }
+
+  function submitBounty() {
+    if (!bountyMaskEl || !bountyTaskId) return;
+    const m = bountyMaskEl;
+    const v = Math.floor(Number(m.querySelector('.bd-input').value));
+    if (!isFinite(v) || v <= 0) { UI.toast('请填写大于 0 的整数积分'); return; }
+    if (v > AppStore.getPoints()) { UI.toast('积分不足，追加失败'); return; }
+    const id = bountyTaskId;
+    const r = AppStore.addBounty(id, v);
+    if (!r.ok) { UI.toast(r.msg); return; }
+    m.classList.remove('show');
+    bountyTaskId = null;
+    UI.showLoading('正在追加悬赏...');
+    setTimeout(function () {
+      UI.hideLoading();
+      syncPoints();
+      renderBoard();
+      renderMe();
+      UI.toast('追加成功，悬赏总额 +' + r.reward + ' 积分', 'success');
+    }, 260);
+  }
+
   // 一桩申诉的卡片 HTML
   function juryCardHtml(a) {
     const c = AppStore.countAppealVotes(a);
@@ -854,6 +1041,22 @@
 
       const vb = e.target.closest ? e.target.closest('.vote-btn') : null;
       if (vb) { doVote(vb.dataset.vote, vb.dataset.side); return; }
+
+      const bnb = e.target.closest ? e.target.closest('.bounty-btn') : null;
+      if (bnb) { openBountyModal(bnb.dataset.bounty); return; }
+
+      const gj = e.target.closest ? e.target.closest('[data-goto="jury"]') : null;
+      if (gj) { nav('jury'); return; }
+
+      // 点击任务卡任意区域展开/收起详情（按钮与详情内部区域除外）
+      const card = e.target.closest ? e.target.closest('.task-card') : null;
+      if (card) {
+        const interactive = e.target.closest('button, a, input, textarea, select, [data-nav]');
+        const insideDetail = e.target.closest('.task-detail');
+        if (!interactive && !insideDetail) {
+          card.classList.toggle('open');
+        }
+      }
     });
 
     // 接取任务快捷按钮：跳到广场并切到“待接取”

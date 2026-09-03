@@ -126,6 +126,25 @@ const AppStore = (function () {
     return s;
   }
 
+  // 追加积分悬赏：发布者给仍未被接取的任务追加悬赏金额（从当前积分实时扣减）
+  function addBounty(taskId, addAmount) {
+    const id = String(taskId == null ? '' : taskId);
+    const amount = Math.floor(Number(addAmount) || 0);
+    if (amount <= 0) return { ok: false, msg: '请填写大于 0 的整数积分' };
+    if (amount > mem.points) return { ok: false, msg: '积分不足，无法追加悬赏' };
+    const t = mem.tasks.find(function (x) { return String(x.id) === id; });
+    if (!t) return { ok: false, msg: '任务不存在或已被移除' };
+    if (t.status !== 'pending') return { ok: false, msg: '任务已被接取或已完成，无法追加悬赏' };
+    mem.points -= amount;
+    write(POINTS_KEY, mem.points);
+    t.reward = (Number(t.reward) || 0) + amount;
+    if (!Array.isArray(t.rewardLog)) t.rewardLog = [];
+    t.rewardLog.push({ add: amount, total: t.reward, time: new Date().toLocaleString() });
+    if (t.rewardLog.length > 20) t.rewardLog.length = 20;
+    write(TASKS_KEY, mem.tasks);
+    return { ok: true, reward: t.reward, points: mem.points };
+  }
+
   /* ===================== 信誉分 ===================== */
   function getCreditScore() { return mem.credit.score; }
 
@@ -356,6 +375,7 @@ const AppStore = (function () {
     getHeartPool,
     calcTaskReward,
     settleTaskReward,
+    addBounty,
     getCreditScore,
     getCreditHistory,
     changeCredit,
